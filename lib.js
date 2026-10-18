@@ -1,0 +1,224 @@
+/* Düzen: veri ve tarih yardımcıları. Tarayıcıda window.DuzenLib, Node'da module.exports. */
+(function (kok, fabrika) {
+  const lib = fabrika();
+  if (typeof module === 'object' && module.exports) module.exports = lib;
+  else kok.DuzenLib = lib;
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  const GUN_KODLARI = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+  const GUN_ADLARI = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+  const AY_ADLARI = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+  const BIRIM = { 'küçük': 1, 'orta': 2, 'büyük': 4 };
+  const DURUM_ADI = { bitti: 'Bitti', devam: 'Devam', planlandi: 'Planlandı', baslanmadi: 'Başlanmadı', rafta: 'Rafta', dustu: 'Düştü' };
+
+  const pad = n => String(n).padStart(2, '0');
+  const isoTarih = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const sadeceGun = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  function tarihAyristir(s) {
+    const [y, m, g] = String(s).split('-').map(Number);
+    return new Date(y, (m || 1) - 1, g || 1);
+  }
+  function gunEkle(d, n) { const x = sadeceGun(d); x.setDate(x.getDate() + n); return x; }
+  function gunFarki(a, b) {
+    return Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 86400000);
+  }
+  const tarihYazi = d => d.getDate() + ' ' + AY_ADLARI[d.getMonth()] + ' ' + GUN_ADLARI[d.getDay()];
+  const kisaTarih = d => d.getDate() + ' ' + AY_ADLARI[d.getMonth()];
+  const saatYazi = d => pad(d.getHours()) + ':' + pad(d.getMinutes());
+
+  // Saat 20:00 ve sonrası Yarın sayfası
+  function gunModu(simdi) {
+    const yarin = simdi.getHours() >= 20;
+    return { yarin, hedef: yarin ? gunEkle(simdi, 1) : sadeceGun(simdi) };
+  }
+
+  function degerCoz(v) {
+    if (v === '') return '';
+    try { return JSON.parse(v); } catch (e) { /* düz YAML değeri */ }
+    if (/^\[.*\]$/.test(v)) return v.slice(1, -1).split(',').map(x => x.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+    return v.replace(/^['"]|['"]$/g, '');
+  }
+
+  // "---" arasındaki "anahtar: değer" satırları
+  function onYaziAyristir(metin) {
+    const m = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(\r?\n|$)/.exec(metin || '');
+    if (!m) return { meta: {}, govde: metin || '' };
+    const meta = {};
+    for (const satir of m[1].split(/\r?\n/)) {
+      if (/^\s/.test(satir)) continue;
+      const i = satir.indexOf(':');
+      if (i < 1) continue;
+      meta[satir.slice(0, i).trim()] = degerCoz(satir.slice(i + 1).trim());
+    }
+    return { meta, govde: metin.slice(m[0].length) };
+  }
+
+  function bolumler(govde) {
+    const sonuc = {};
+    let baslik = null, tampon = [];
+    for (const satir of (govde || '').split(/\r?\n/)) {
+      const m = /^##\s+(.+?)\s*$/.exec(satir);
+      if (m) {
+        if (baslik !== null) sonuc[baslik] = tampon.join('\n').trim();
+        baslik = m[1]; tampon = [];
+      } else if (baslik !== null) tampon.push(satir);
+    }
+    if (baslik !== null) sonuc[baslik] = tampon.join('\n').trim();
+    return sonuc;
+  }
+
+  function bolumBul(b, onEk) {
+    const k = Object.keys(b).find(x => x.startsWith(onEk));
+    return k ? b[k] : '';
+  }
+
+  function ilkParagraf(govde) {
+    const s = (govde || '').split(/\r?\n/);
+    let i = s.findIndex(x => /^#\s/.test(x));
+    i = i < 0 ? 0 : i + 1;
+    while (i < s.length && !s[i].trim()) i++;
+    const out = [];
+    while (i < s.length && s[i].trim() && !/^#/.test(s[i])) out.push(s[i++].trim());
+    return out.join(' ');
+  }
+
+  // Gövdeden "# Başlık" satırını çıkarır (başlık antette gösteriliyor)
+  function basliksizGovde(govde) {
+    return (govde || '').replace(/^\s*#\s[^\n]*\n?/, '');
+  }
+
+  function projeOku(yol, metin) {
+    const { meta, govde } = onYaziAyristir(metin);
+    const b = bolumler(govde);
+    return {
+      slug: yol.split('/').pop().replace(/\.md$/, ''),
+      yol, meta, govde,
+      ozet: ilkParagraf(govde),
+      sirada: bolumBul(b, 'Sıradaki adım').replace(/\s+/g, ' ').trim(),
+    };
+  }
+
+  // "06:00-07:00" → 360; saat yazmayan bloklar kaba yerine oturur
+  function saatAnahtari(s) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(s || '');
+    if (m) return Number(m[1]) * 60 + Number(m[2]);
+    const t = String(s || '').toLocaleLowerCase('tr');
+    if (t.includes('öğleden sonra')) return 13 * 60;
+    if (t.includes('gün içi')) return 10 * 60;
+    if (t.includes('sabah')) return 8 * 60;
+    if (t.includes('akşam')) return 19 * 60;
+    return 24 * 60;
+  }
+
+  // Haftalık iskeletten bir günün planı
+  function gunPlani(iskelet, tarih) {
+    if (!iskelet) return { bloklar: [], uyku: null, serbest: null, kod: GUN_KODLARI[tarih.getDay()] };
+    const kod = GUN_KODLARI[tarih.getDay()];
+    const iso = isoTarih(tarih);
+    const bloklar = (iskelet.bloklar || []).filter(b => (b.gunler || []).includes(kod))
+      .slice().sort((a, b) => saatAnahtari(a.saat) - saatAnahtari(b.saat));
+    let uyku = null;
+    for (const u of (iskelet.uyku || [])) if (u.baslangic <= iso && (!uyku || u.baslangic >= uyku.baslangic)) uyku = u;
+    // "ışıktan önceki 30 dk" gibi bloklar o günün ışık saatine göre gerçek saate çevrilir
+    const dkYazi = n => pad(Math.floor(((n % 1440) + 1440) % 1440 / 60)) + ':' + pad(((n % 60) + 60) % 60);
+    const cozulmus = bloklar.map(b => {
+      const m = /ışıktan önceki\s+(\d+)\s*dk/i.exec(b.saat || '');
+      if (!m || !uyku) return b;
+      const bit = saatAnahtari(uyku.isik);
+      return Object.assign({}, b, { saat: dkYazi(bit - Number(m[1])) + '-' + uyku.isik });
+    }).sort((a, b) => saatAnahtari(a.saat) - saatAnahtari(b.saat));
+    return { bloklar: cozulmus, uyku, serbest: iskelet.serbest_aksam || null, kod };
+  }
+
+  function jsonlOku(metin) {
+    const out = [];
+    for (const s of (metin || '').split(/\r?\n/)) {
+      const t = s.trim();
+      if (!t) continue;
+      try { out.push(JSON.parse(t)); } catch (e) { /* bozuk satır atlanır */ }
+    }
+    return out;
+  }
+
+  // Bugünün eksik girdileri: uyku her gün, sabah bloğu hafta içi, okuma her gün
+  function eksikGirdiler(kayitlar, tarih) {
+    const iso = isoTarih(tarih);
+    const var_ = tur => kayitlar.some(k => k.t === iso && k.tur === tur);
+    const eksik = [];
+    if (!var_('uyku')) eksik.push('uyku');
+    const g = tarih.getDay();
+    if (g >= 1 && g <= 5 && !var_('sabah_blogu')) eksik.push('sabah_blogu');
+    if (!var_('okuma')) eksik.push('okuma');
+    return eksik;
+  }
+
+  function haricMi(iso, haric) {
+    return (haric || []).some(([a, b]) => iso >= a && iso <= b);
+  }
+
+  // [bas, bit] dahil, hariç aralıklar düşülmüş gün sayısı
+  function etkinGun(bas, bit, haric) {
+    let n = 0;
+    for (let d = sadeceGun(bas); d <= bit; d = gunEkle(d, 1)) if (!haricMi(isoTarih(d), haric)) n++;
+    return n;
+  }
+
+  // 2027 hızı: biten ve bugüne kadar beklenen birim
+  function hiz(projeler, havuzMeta, bugun) {
+    const birim = (havuzMeta && havuzMeta.birim) || BIRIM;
+    const basIso = havuzMeta && havuzMeta.baslangic;
+    let toplam = 0, biten = 0;
+    for (const p of projeler) {
+      const m = p.meta || {};
+      if (m.durum === 'dustu') continue;
+      if (m.durum === 'bitti' && basIso && m.bitis && m.bitis < basIso) continue;
+      const u = birim[m.buyukluk] || 0;
+      toplam += u;
+      if (m.durum === 'bitti') biten += u;
+    }
+    if (!havuzMeta || !havuzMeta.baslangic || !havuzMeta.bitis_hedef) return { toplam, biten, beklenen: null, haftalik: null };
+    const bas = tarihAyristir(havuzMeta.baslangic);
+    const son = tarihAyristir(havuzMeta.bitis_hedef);
+    const toplamGun = etkinGun(bas, son, havuzMeta.haric);
+    const gecen = bugun < bas ? 0 : etkinGun(bas, bugun < son ? sadeceGun(bugun) : son, havuzMeta.haric);
+    return {
+      toplam, biten,
+      beklenen: toplamGun ? toplam * gecen / toplamGun : 0,
+      haftalik: toplamGun ? toplam / (toplamGun / 7) : 0,
+      kalanHafta: Math.max(0, (toplamGun - gecen) / 7),
+    };
+  }
+
+  function kalanGun(iso, bugun) { return iso ? gunFarki(sadeceGun(bugun), tarihAyristir(iso)) : null; }
+  function kalanYazi(n) {
+    if (n === null || n === undefined) return '';
+    if (n === 0) return 'bugün';
+    if (n === 1) return 'yarın';
+    if (n > 1) return n + ' gün kaldı';
+    if (n === -1) return 'dün geçti';
+    return (-n) + ' gün geçti';
+  }
+
+  // Açık görevler: en yakın tarihi olan önce, tarihsizler sonda
+  function gorevSirala(gorevler) {
+    const ilk = g => [g.son_tarih, g.deadline].filter(Boolean).sort()[0] || '9999-99-99';
+    return gorevler.slice().sort((a, b) => ilk(a).localeCompare(ilk(b)) || String(a.baslik).localeCompare(String(b.baslik), 'tr'));
+  }
+
+  const HAVA = {
+    0: 'Açık', 1: 'Çoğunlukla açık', 2: 'Parçalı bulutlu', 3: 'Kapalı', 45: 'Sisli', 48: 'Kırağılı sis',
+    51: 'Hafif çisenti', 53: 'Çisenti', 55: 'Yoğun çisenti', 56: 'Donan çisenti', 57: 'Donan çisenti',
+    61: 'Hafif yağmur', 63: 'Yağmurlu', 65: 'Kuvvetli yağmur', 66: 'Donan yağmur', 67: 'Donan yağmur',
+    71: 'Hafif kar', 73: 'Karlı', 75: 'Yoğun kar', 77: 'Kar taneleri', 80: 'Hafif sağanak', 81: 'Sağanak',
+    82: 'Şiddetli sağanak', 85: 'Kar sağanağı', 86: 'Yoğun kar sağanağı', 95: 'Gök gürültülü fırtına',
+    96: 'Dolulu fırtına', 99: 'Dolulu fırtına',
+  };
+
+  return {
+    GUN_KODLARI, GUN_ADLARI, AY_ADLARI, BIRIM, DURUM_ADI, HAVA,
+    pad, isoTarih, sadeceGun, tarihAyristir, gunEkle, gunFarki, tarihYazi, kisaTarih, saatYazi, gunModu,
+    onYaziAyristir, bolumler, bolumBul, ilkParagraf, basliksizGovde, projeOku, saatAnahtari, gunPlani,
+    jsonlOku, eksikGirdiler, etkinGun, hiz, kalanGun, kalanYazi, gorevSirala,
+  };
+});

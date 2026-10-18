@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1a2b">
+<meta name="robots" content="noindex">
+<title>Düzen</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="kabuk">
+  <header class="ust">
+    <a class="marka" href="#bugun">Düzen</a>
+    <span class="ust-saat sayi" id="saat"></span>
+    <span class="ust-dugmeler">
+      <button class="ikon-dugme" id="yenileBtn" type="button" aria-label="Şimdi eşitle" title="Şimdi eşitle">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>
+      </button>
+      <button class="ikon-dugme" id="ayarBtn" type="button" aria-label="Ayarlar" title="Ayarlar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+      </button>
+    </span>
+  </header>
+
+  <nav class="sekmeler" aria-label="Bölümler">
+    <a href="#bugun" data-sekme="bugun">Bugün</a>
+    <a href="#defter" data-sekme="defter">Defter</a>
+    <a href="#is" data-sekme="is">İş</a>
+    <a href="#koc" data-sekme="koc">Koç</a>
+  </nav>
+
+  <div class="durum-cubugu" id="durum" role="status" hidden></div>
+  <main id="gorunum"></main>
+</div>
+
+<button class="ekle-fab" id="ekleBtn" type="button" aria-label="Hızlı ekle">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+</button>
+<div class="tost" id="tost" role="status" hidden></div>
+
+<dialog id="ekleDialog" aria-labelledby="ekle-baslik">
+  <form id="ekleForm" method="dialog">
+    <h2 id="ekle-baslik">Hızlı ekle</h2>
+    <div id="ekle-alanlar"></div>
+    <div class="dialog-alt">
+      <button type="button" class="metin-dugme" data-kapat="ekleDialog">Vazgeç</button>
+      <button type="submit" class="dugme">Kaydet</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="gorevDialog" aria-labelledby="gorev-baslik">
+  <form id="gorevForm" method="dialog">
+    <h2 id="gorev-baslik">Görev ekle</h2>
+    <label class="alan" for="gorev-ad">Görev<input id="gorev-ad" name="baslik" type="text" required placeholder="Load list kontrolü"></label>
+    <div class="iki-alan">
+      <label class="alan" for="gorev-proje">Proje<input id="gorev-proje" name="proje" type="text" placeholder="Ceyhan"></label>
+      <label class="alan" for="gorev-veren">Veren<input id="gorev-veren" name="veren" type="text" placeholder="Fatih abi"></label>
+    </div>
+    <div class="iki-alan">
+      <label class="alan" for="gorev-son">Son tarih<input id="gorev-son" name="son_tarih" type="date"></label>
+      <label class="alan" for="gorev-dl">Deadline<input id="gorev-dl" name="deadline" type="date"></label>
+    </div>
+    <label class="alan" for="gorev-not">Not<textarea id="gorev-not" name="not" rows="2"></textarea></label>
+    <div class="dialog-alt">
+      <button type="button" class="metin-dugme" data-kapat="gorevDialog">Vazgeç</button>
+      <button type="submit" class="dugme">Görevi ekle</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="ayarDialog" aria-labelledby="ayar-baslik">
+  <div class="ayar">
+    <h2 id="ayar-baslik">Ayarlar</h2>
+    <p id="ayar-durum" class="not"></p>
+    <label class="alan" for="ayar-anahtar">GitHub anahtarı<input id="ayar-anahtar" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></label>
+    <details class="yardim">
+      <summary>Anahtar nasıl alınır</summary>
+      <ol>
+        <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub'da yeni fine-grained token sayfasını</a> aç.</li>
+        <li>Adına cihazı yaz (ör. Düzen tablet), süreyi seç.</li>
+        <li>Repository access: <b>Only select repositories</b>, sadece <b>mskldf/duzen-veri</b>.</li>
+        <li>Permissions altında Repository permissions, <b>Contents: Read and write</b>.</li>
+        <li>Generate token deyip çıkan anahtarı buraya yapıştır.</li>
+      </ol>
+      <p>Anahtar sadece bu cihazda saklanır. Kimseyle paylaşma, sohbete de yazma.</p>
+    </details>
+    <div class="dialog-alt">
+      <button type="button" class="metin-dugme" id="anahtarSil" hidden>Anahtarı bu cihazdan sil</button>
+      <button type="button" class="metin-dugme" data-kapat="ayarDialog">Kapat</button>
+      <button type="button" class="dugme" id="anahtarKaydet">Kaydet</button>
+    </div>
+  </div>
+</dialog>
+
+<script src="vendor/marked.min.js"></script>
+<script src="lib.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
