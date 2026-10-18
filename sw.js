@@ -1,7 +1,8 @@
 /* Düzen: uygulama kabuğunu önbellekte tutar; veri ve hava ağdan gelir (uygulama kendi kopyasını saklar). */
-const SURUM = 'duzen-v3';
+const SURUM = 'duzen-v4';
 const KABUK = [
   './', 'index.html', 'app.css', 'lib.js', 'app.js', 'manifest.webmanifest',
+  'odak.js', 'oneri.js', 'qr.js', 'vendor/qrcode.js',
   'vendor/marked.min.js', 'fonts/fonts.css',
   'fonts/barlow-condensed-latin-500-normal.woff2', 'fonts/barlow-condensed-latin-600-normal.woff2',
   'fonts/barlow-condensed-latin-ext-500-normal.woff2', 'fonts/barlow-condensed-latin-ext-600-normal.woff2',

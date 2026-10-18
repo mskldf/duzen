@@ -239,6 +239,66 @@
     };
   }
 
+  // Işık saati hedeften toleranstan fazla geç mi? Akşam hedefinde gece yarısından sonrası ertesi gün sayılır.
+  function isikGecMi(v, hedef, tolerans) {
+    if (!v || !hedef) return false;
+    let a = saatAnahtari(v);
+    const b = saatAnahtari(hedef);
+    if (b >= 18 * 60 && a < 12 * 60) a += 24 * 60;
+    return a - b > (tolerans == null ? 15 : tolerans);
+  }
+
+  // Haftalık ölçüler ve kendi baseline'ın: son n hafta; baseline, bu haftadan önceki en fazla 4 geçerli haftanın ortalaması.
+  // Geçerli hafta: takip başladıktan sonra ve en az 4 günü hariç (gezi, askerlik) olmayan hafta.
+  const OLCULER = [
+    { ad: 'uyku', baslik: 'Işık hedefine uyulan gece', birim: 'gece', tur: 'uyku', iyi: 1 },
+    { ad: 'sabah', baslik: 'Sabah bloğu', birim: 'gün', tur: 'sabah_blogu', iyi: 1 },
+    { ad: 'okuma', baslik: 'Okunan gece', birim: 'gece', tur: 'okuma', iyi: 1 },
+    { ad: 'film', baslik: 'Film', birim: 'film', tur: 'film', iyi: 0 },
+    { ad: 'bisiklet', baslik: 'Bisiklet', birim: 'km', tur: 'bisiklet', iyi: 1 },
+    { ad: 'atolye', baslik: 'Atölye', birim: 'dk', tur: 'atolye', iyi: 1 },
+    { ad: 'muzik', baslik: 'Haftanın albümü', birim: 'albüm', tur: 'muzik', iyi: 1 },
+  ];
+  function haftalikOlculer(kayitlar, bugun, ayar) {
+    ayar = ayar || {};
+    const n = ayar.n || 8, haric = ayar.haric || [];
+    const hedefIsik = ayar.hedefIsik || (() => null);
+    const buHafta = haftaBasi(bugun);
+    const ilk = kayitlar.map(k => k.t).filter(Boolean).sort()[0];
+    const basHafta = ayar.baslangic ? haftaBasi(tarihAyristir(ayar.baslangic)) : (ilk ? haftaBasi(tarihAyristir(ilk)) : buHafta);
+    const haftalar = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const h = gunEkle(buHafta, -7 * i);
+      let haricGun = 0;
+      for (let g = 0; g < 7; g++) if (haricMi(isoTarih(gunEkle(h, g)), haric)) haricGun++;
+      haftalar.push({ bas: isoTarih(h), son: isoTarih(gunEkle(h, 6)), gecerli: h >= basHafta && haricGun < 4, haricGun, buHafta: i === 0 });
+    }
+    const deger = (o, bas, son) => {
+      const ks = kayitlar.filter(k => k.tur === o.tur && k.t >= bas && k.t <= son);
+      if (o.ad === 'uyku') return ks.filter(k => k.isik && !isikGecMi(k.isik, hedefIsik(k.t))).length;
+      if (o.ad === 'sabah' || o.ad === 'okuma') return ks.filter(k => k.yapildi !== false).length;
+      if (o.ad === 'bisiklet') return Math.round(ks.reduce((a, k) => a + (Number(k.km) || 0), 0) * 10) / 10;
+      if (o.ad === 'atolye') return ks.reduce((a, k) => a + (Number(k.dk) || 0), 0);
+      return ks.length;
+    };
+    // Hafta bitmeden karşılaştırma: baseline haftanın geçen kısmına oranlanır (bugün, girdisi varsa sayılır)
+    const bugunIso = isoTarih(bugun);
+    const gecen = gunFarki(buHafta, sadeceGun(bugun));   // bugünden önceki günler
+    return OLCULER.map(o => {
+      const veriVar = kayitlar.some(k => k.tur === o.tur);
+      const degerler = haftalar.map(h => (h.gecerli ? deger(o, h.bas, h.son) : null));
+      const onceki = degerler.slice(0, -1).filter(v => v !== null).slice(-4);
+      const baz = onceki.length ? onceki.reduce((a, b) => a + b, 0) / onceki.length : null;
+      const bu = degerler[degerler.length - 1];
+      const bugunVar = kayitlar.some(k => k.tur === o.tur && k.t === bugunIso);
+      const gun = gecen + (bugunVar ? 1 : 0);
+      const oran = o.ad === 'sabah' ? Math.min(gun, 5) / 5 : gun / 7;
+      const beklenen = baz === null ? null : baz * oran;
+      return Object.assign({}, o, { veriVar, haftalar, degerler, baz, bazHafta: onceki.length, bu, beklenen,
+        fark: beklenen !== null && bu !== null ? bu - beklenen : null });
+    });
+  }
+
   function kalanGun(iso, bugun) { return iso ? gunFarki(sadeceGun(bugun), tarihAyristir(iso)) : null; }
   function kalanYazi(n) {
     if (n === null || n === undefined) return '';
@@ -269,5 +329,6 @@
     pad, isoTarih, sadeceGun, tarihAyristir, gunEkle, gunFarki, tarihYazi, kisaTarih, saatYazi, gunModu,
     onYaziAyristir, bolumler, bolumBul, ilkParagraf, basliksizGovde, projeOku, saatAnahtari, gunPlani,
     jsonlOku, eksikGirdiler, haricMi, haftaBasi, kapanisGunu, okumaBloku, albumPlani, etkinGun, hiz, kalanGun, kalanYazi, gorevSirala,
+    isikGecMi, OLCULER, haftalikOlculer,
   };
 });

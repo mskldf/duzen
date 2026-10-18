@@ -105,6 +105,15 @@
       </ol>
       <p>Anahtar sadece bu cihazda saklanır. Kimseyle paylaşma, sohbete de yazma.</p>
     </details>
+    <div class="qr-dugmeler">
+      <button type="button" class="metin-dugme" id="qrGoster" hidden>Başka cihaza aktar (QR)</button>
+      <button type="button" class="metin-dugme" id="qrOku" hidden>QR ile anahtar al</button>
+    </div>
+    <div class="qr-alani" id="qrAlani" hidden>
+      <p class="not">Diğer cihazda Düzen'i aç, Ayarlar'da "QR ile anahtar al" de ve bunu okut. 60 saniye sonra kaybolur; kimseye gösterme.</p>
+      <div class="qr-kutu" id="qrKutu"></div>
+    </div>
+    <video id="qrKamera" class="qr-kamera" playsinline muted hidden></video>
     <p class="dialog-hata" role="alert" hidden></p>
     <div class="dialog-alt">
       <button type="button" class="metin-dugme" id="anahtarSil" hidden>Anahtarı bu cihazdan sil</button>
@@ -116,6 +125,10 @@
 
 <script src="vendor/marked.min.js"></script>
 <script src="lib.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="odak.js"></script>
+<script src="oneri.js"></script>
+<script src="qr.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

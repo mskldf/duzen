@@ -308,6 +308,8 @@
     const isHtml = acik.length ? '<ul class="liste">' + acik.slice(0, 5).map(gorevSatiri).join('') + '</ul>' +
       (acik.length > 5 ? '<p class="not"><a href="#is">' + (acik.length - 5) + ' görev daha</a></p>' : '')
       : '<p class="not">Açık iş görevi yok.</p>';
+    const cuma = !yarin && simdi.getDay() === 5 && !haftalikDokum(gorevler(), L.haftaBasi(simdi)).bos
+      ? '<p class="not"><a href="#is/hafta/' + L.isoTarih(L.haftaBasi(simdi)) + '">Bu haftanın iş dökümü hazır</a></p>' : '';
 
     // sıradaki işler: devam eden projeler
     const aktif = projeler().filter(p => p.meta.durum === 'devam').slice(0, 4);
@@ -330,7 +332,7 @@
       kapatKarti + ekKartlar('bugun-ust', simdi) + askerlikKarti(hm, simdi) +
       '<section><h2>Plan</h2>' + (planHtml ? '<ol class="plan">' + planHtml + '</ol>' : '<p class="not">Bu gün için iskelette blok yok.</p>') + serbest + buAksam + '</section>' +
       ekKartlar('bugun-plan-alti', simdi) +
-      '<section><h2>İş</h2>' + isHtml + '</section>' +
+      '<section><h2>İş</h2>' + isHtml + cuma + '</section>' +
       '<section><h2>Sıradaki işler</h2>' + (projeHtml ? '<ul class="liste">' + projeHtml + '</ul>' : '<p class="not">Devam eden proje yok.</p>') + '</section>' +
       (kapatKarti ? '' : '<section><h2>' + (yarin ? 'Bugünden eksik kalan girdiler' : 'Eksik girdiler') + '</h2>' + eksikHtml + '</section>') +
       '</article>';
@@ -416,7 +418,44 @@
       '<div class="defter-sayfa">' + (arg ? '<a class="geri" href="#defter">Defter</a>' : '') + sag + '</div></div>';
   }
 
-  function isGorunumu() {
+  // Haftalık iş dökümü: o hafta biten, not düşülen, yeni gelen ve süren görevler
+  function haftalikDokum(tum, pazartesi) {
+    const bas = L.isoTarih(pazartesi), son = L.isoTarih(L.gunEkle(pazartesi, 6));
+    const icinde = t => t && t >= bas && t <= son;
+    const biten = tum.filter(g => g.durum === 'bitti' && icinde(g.bitis));
+    const yeni = tum.filter(g => icinde(g.verildi) && !biten.includes(g));
+    const notlu = tum.map(g => ({ g, n: (g.notlar || []).filter(n => icinde(n.t)) })).filter(x => x.n.length);
+    const suren = L.gorevSirala(tum.filter(g => (g.durum === 'acik' || g.durum === 'devam' || g.durum === 'beklemede') && !(g.verildi && g.verildi > son)));
+    const ad = g => g.baslik + (g.proje ? ' (' + g.proje + ')' : '');
+    const aralik = pazartesi.getDate() + (pazartesi.getMonth() === L.gunEkle(pazartesi, 6).getMonth() ? '' : ' ' + L.AY_ADLARI[pazartesi.getMonth()]) +
+      '–' + L.kisaTarih(L.gunEkle(pazartesi, 6));
+    const satirlar = [aralik];
+    if (biten.length) satirlar.push('Biten: ' + biten.map(ad).join(', '));
+    for (const x of notlu) satirlar.push(x.g.baslik + ': ' + x.n.map(n => n.metin.replace(/\.?$/, '.')).join(' '));
+    if (yeni.length) satirlar.push('Yeni gelen: ' + yeni.map(g => ad(g) + (g.veren ? ', ' + g.veren : '')).join('; '));
+    if (suren.length) satirlar.push('Süren: ' + suren.map(g => g.baslik + (g.durum === 'beklemede' ? ' (beklemede)' : '')).join(', '));
+    return { aralik, biten, yeni, notlu, suren, metin: satirlar.join('\n'), bos: !biten.length && !yeni.length && !notlu.length };
+  }
+
+  function dokumHtml(tum, arg) {
+    const m = /^hafta\/(\d{4}-\d{2}-\d{2})$/.exec(arg || '');
+    const pazartesi = L.haftaBasi(m ? L.tarihAyristir(m[1]) : new Date());
+    const dk = haftalikDokum(tum, pazartesi);
+    const onceki = L.isoTarih(L.gunEkle(pazartesi, -7)), sonraki = L.isoTarih(L.gunEkle(pazartesi, 7));
+    const buHafta = L.isoTarih(L.haftaBasi(new Date()));
+    const li = (etiket, ic) => '<li><span class="dokum-etiket">' + etiket + '</span> ' + ic + '</li>';
+    const govde = dk.bos && !dk.suren.length ? '<p class="not">Bu hafta için görev kaydı yok.</p>' : '<ul class="dokum">' +
+      (dk.biten.length ? li('Biten', dk.biten.map(g => esc(g.baslik)).join(', ')) : '') +
+      dk.notlu.map(x => li(esc(x.g.baslik), x.n.map(n => esc(n.metin)).join(' · '))).join('') +
+      (dk.yeni.length ? li('Yeni gelen', dk.yeni.map(g => esc(g.baslik) + (g.veren ? ' <small class="satir-ici">' + esc(g.veren) + '</small>' : '')).join(', ')) : '') +
+      (dk.suren.length ? li('Süren', dk.suren.map(g => esc(g.baslik)).join(', ')) : '') + '</ul>';
+    return '<section id="dokum"><div class="kart-ust"><h2>Haftalık döküm</h2><div class="hafta-gez">' +
+      '<a href="#is/hafta/' + onceki + '" aria-label="Önceki hafta">‹</a><span class="sayi">' + esc(dk.aralik) + '</span>' +
+      (sonraki <= buHafta ? '<a href="#is/hafta/' + sonraki + '" aria-label="Sonraki hafta">›</a>' : '<span class="soluk-ok">›</span>') + '</div></div>' +
+      govde + (dk.bos ? '' : '<button type="button" class="metin-dugme" data-kopyala="' + esc(dk.metin) + '">Düz metin olarak kopyala</button>') + '</section>';
+  }
+
+  function isGorunumu(arg) {
     if (!veriVar()) return ilkKurulum();
     const tum = gorevler();
     const acik = L.gorevSirala(tum.filter(g => g.durum === 'acik' || g.durum === 'devam'));
@@ -432,6 +471,7 @@
       '<section><h2>Açık</h2>' + (acik.length ? '<ul class="liste">' + acik.map(kart).join('') + '</ul>' : '<p class="not">Açık görev yok. Sohbette yaz ya da Görev ekle\'ye bas.</p>') + '</section>' +
       (bekle.length ? '<section><h2>Beklemede</h2><ul class="liste">' + bekle.map(kart).join('') + '</ul></section>' : '') +
       (biten.length ? '<section><h2>Bitenler</h2><ul class="liste soluk">' + biten.map(kart).join('') + '</ul></section>' : '') +
+      dokumHtml(tum, arg) +
       '</article>';
   }
 
@@ -453,14 +493,7 @@
     const kay = kayitlar();
     const iskel = iskelet();
     const uykular = kay.filter(k => k.tur === 'uyku').sort((a, b) => b.t.localeCompare(a.t)).slice(0, 14);
-    // Hedeften 15 dakikadan fazla geç mi? Akşam hedefi için gece yarısından sonrası ertesi gün sayılır.
-    const gecMi = (v, h2) => {
-      if (!v || !h2) return false;
-      let a = L.saatAnahtari(v);
-      const b = L.saatAnahtari(h2);
-      if (b >= 18 * 60 && a < 12 * 60) a += 24 * 60;
-      return a - b > 15;
-    };
+    const gecMi = (v, h2) => L.isikGecMi(v, h2, 15);
     const uykuHtml = uykular.length ? '<table class="kucuk-tablo"><thead><tr><th>Gün</th><th>Işık</th><th>Kalkış</th></tr></thead><tbody>' + uykular.map(k => {
       const hedef = L.gunPlani(iskel, L.tarihAyristir(k.t)).uyku || {};
       return '<tr><td>' + esc(L.kisaTarih(L.tarihAyristir(k.t))) + '</td><td class="sayi' + (gecMi(k.isik, hedef.isik) ? ' gecikti' : '') + '">' + esc(k.isik || '–') + '</td>' +
@@ -472,11 +505,58 @@
     const degHtml = degYollari.length ? '<div class="metin">' + md(L.onYaziAyristir(metin(degYollari[degYollari.length - 1])).govde) + '</div>' : '<p class="not">İlk değerlendirme Pazar akşamı gelecek.</p>';
     return '<article class="koc">' +
       '<header class="bolum-bas"><h1>Koç</h1></header>' +
+      ekKartlar('koc-ust', simdi) +
       '<section><h2>2027 hızı</h2>' + hizHtml + '</section>' +
+      haftalarHtml(kay, iskel, hv, simdi) +
       '<section><h2>Uyku, son 14 gün</h2>' + uykuHtml + '</section>' +
       '<section><h2>Son girdiler</h2>' + sonHtml + '</section>' +
       '<section><h2>Son değerlendirme</h2>' + degHtml + '</section>' +
+      ekKartlar('koc-alt', simdi) +
       '</article>';
+  }
+
+  // Haftalar: her ölçüde son 8 hafta ve kendi baseline'ın (önceki en fazla 4 haftanın ortalaması)
+  function haftalarHtml(kay, iskel, hv, simdi) {
+    const olculer = L.haftalikOlculer(kay, simdi, {
+      n: 8, haric: hv ? hv.meta.haric : [],
+      hedefIsik: t => (L.gunPlani(iskel, L.tarihAyristir(t)).uyku || {}).isik,
+    }).filter(o => o.veriVar);
+    if (!olculer.length) return '<section><h2>Haftalar</h2><p class="not">Girdiler birikince her ölçü için haftalık grafik ve baseline burada çıkar.</p></section>';
+    const fmt = v => String(Math.round(v * 10) / 10).replace('.', ',');
+    const kisa = h => L.kisaTarih(L.tarihAyristir(h.bas));
+    const kartlar = olculer.map(o => {
+      const gecerli = o.degerler.filter(v => v !== null);
+      const ust = Math.max(1, ...gecerli, o.baz || 0);
+      const sutunlar = o.haftalar.map((h, i) => {
+        const v = o.degerler[i];
+        const etiket = kisa(h) + ' haftası: ' + (v === null ? (h.haricGun >= 4 ? 'takip dışı' : 'takip başlamadan') : fmt(v) + ' ' + o.birim);
+        return '<div class="mini-sutun' + (h.buHafta ? ' bu' : '') + (v === null ? ' yok' : '') + '" tabindex="0" title="' + esc(etiket) + '" aria-label="' + esc(etiket) + '">' +
+          (v ? '<i style="height:' + (v / ust * 100).toFixed(1) + '%"></i>' : '') + '</div>';
+      }).join('');
+      const cizgi = o.baz !== null ? '<div class="mini-baz" style="bottom:' + (o.baz / ust * 100).toFixed(1) + '%" aria-hidden="true"></div>' : '';
+      let baz;
+      if (o.baz === null) baz = 'Baseline bir hafta daha veri birikince çıkar.';
+      else {
+        const r1 = v => Math.round(v * 10) / 10;
+        const f = o.bu === null ? 0 : r1(r1(o.bu) - r1(o.beklenen));   // gösterilen sayılarla tutarlı
+        const yon = Math.abs(f) < 0.05 ? 'aynı' : (f > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(f));
+        const sinif = o.iyi && Math.abs(f) >= 0.05 ? (f > 0 ? ' iyi' : ' kotu') : '';
+        baz = 'Baseline ' + fmt(o.baz) + '/hafta · bu noktada ' + fmt(o.beklenen) + ' · <span class="' + sinif.trim() + '">' + yon + '</span>';
+      }
+      return '<div class="olcu"><h3>' + esc(o.baslik) + '</h3>' +
+        '<p class="olcu-deger"><span class="olcu-sayi">' + (o.bu === null ? '–' : fmt(o.bu)) + '</span> ' + esc(o.birim) + ' bu hafta</p>' +
+        '<p class="olcu-baz">' + baz + '</p>' +
+        '<div class="mini" role="group" aria-label="' + esc(o.baslik) + ', son 8 hafta">' + cizgi + sutunlar + '</div>' +
+        '<div class="mini-eksen"><span>' + esc(kisa(o.haftalar[0])) + '</span><span>bu hafta</span></div></div>';
+    }).join('');
+    const h0 = olculer[0].haftalar;
+    const tablo = '<details class="tablo-ac"><summary>Tablo</summary><div class="tablo-sar"><table class="kucuk-tablo"><thead><tr><th></th>' +
+      h0.map(h => '<th class="sayi">' + esc(kisa(h)) + '</th>').join('') + '<th>Baseline</th></tr></thead><tbody>' +
+      olculer.map(o => '<tr><td>' + esc(o.baslik) + ' <small class="satir-ici">' + esc(o.birim) + '</small></td>' +
+        o.degerler.map(v => '<td class="sayi">' + (v === null ? '–' : fmt(v)) + '</td>').join('') +
+        '<td class="sayi">' + (o.baz === null ? '–' : fmt(o.baz)) + '</td></tr>').join('') + '</tbody></table></div></details>';
+    return '<section><h2>Haftalar</h2><p class="not">Ölçü kendi baseline\'ın: önceki en fazla 4 haftanın ortalaması. Hafta bitmeden, haftanın geçen kısmına göre karşılaştırılır. Gezi ve askerlik haftaları sayılmaz.</p>' +
+      '<div class="olculer">' + kartlar + '</div>' + tablo + '</section>';
   }
 
   function girdiOzeti(k) {
@@ -729,6 +809,10 @@
     else if (t.dataset.gorevBitti) islemle(t, () => gorevDurum(t.dataset.gorevBitti, 'bitti'), 'Bitti olarak işaretlendi');
     else if (t.dataset.gorevAc) islemle(t, () => gorevDurum(t.dataset.gorevAc, 'devam'), 'Geri açıldı');
     else if (t.dataset.kapat) $('#' + t.dataset.kapat).close();
+    else if (t.dataset.kopyala !== undefined) {
+      const yaz = navigator.clipboard ? navigator.clipboard.writeText(t.dataset.kopyala) : Promise.reject();
+      yaz.then(() => tost('Kopyalandı'), () => tost('Kopyalanamadı', true));
+    }
   });
 
   $('#ekleBtn').addEventListener('click', () => ekleAc());
@@ -754,7 +838,11 @@
     const btn = e.submitter || $('#gorevForm button[type=submit]');
     islemle(btn, () => gorevKaydet(e.target), 'Görev eklendi').then(ok => { if (ok) $('#gorevDialog').close(); });
   });
-  window.addEventListener('hashchange', () => { ciz(); window.scrollTo(0, 0); });
+  window.addEventListener('hashchange', () => {
+    ciz();
+    const dokum = /^#is\/hafta\//.test(location.hash) && document.getElementById('dokum');
+    if (dokum) dokum.scrollIntoView(); else window.scrollTo(0, 0);
+  });
   window.addEventListener('online', () => { esitle(true); havaGetir(); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { esitle(true); havaGetir(); ciz(); } });
 
