@@ -1,8 +1,8 @@
 /* Düzen: uygulama kabuğunu önbellekte tutar; veri ve hava ağdan gelir (uygulama kendi kopyasını saklar). */
-const SURUM = 'duzen-v4';
+const SURUM = 'duzen-v6';
 const KABUK = [
   './', 'index.html', 'app.css', 'lib.js', 'app.js', 'manifest.webmanifest',
-  'odak.js', 'oneri.js', 'qr.js', 'vendor/qrcode.js',
+  'odak.js', 'oneri.js', 'qr.js', 'gelen.js', 'saatler.js', 'muzik.js', 'vendor/qrcode.js',
   'vendor/marked.min.js', 'fonts/fonts.css',
   'fonts/barlow-condensed-latin-500-normal.woff2', 'fonts/barlow-condensed-latin-600-normal.woff2',
   'fonts/barlow-condensed-latin-ext-500-normal.woff2', 'fonts/barlow-condensed-latin-ext-600-normal.woff2',
@@ -30,9 +30,32 @@ self.addEventListener('activate', e => {
     .then(() => self.clients.claim()));
 });
 
+// Paylaş → Düzen: Android'in paylaş menüsünden gelen link, metin ve fotoğraf cihazda saklanır,
+// uygulama Gelen kutusunda açılır; Emir onaylayınca depoya yazılır.
+async function paylasimiSakla(istek) {
+  const fd = await istek.formData();
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const c = await caches.open('duzen-paylasim');
+  const meta = { id, t: new Date().toISOString(), baslik: String(fd.get('baslik') || ''), metin: String(fd.get('metin') || ''), url: String(fd.get('url') || ''), dosyalar: [] };
+  const dosyalar = fd.getAll('dosya').filter(f => f && typeof f !== 'string' && f.size);
+  for (let i = 0; i < dosyalar.length; i++) {
+    const yol = 'paylasim/' + id + '/' + i;
+    await c.put(yol, new Response(dosyalar[i], { headers: { 'content-type': dosyalar[i].type || 'application/octet-stream' } }));
+    meta.dosyalar.push({ yol, ad: dosyalar[i].name || '', tur: dosyalar[i].type || '' });
+  }
+  // Bazı uygulamalar linki metnin içinde gönderir
+  if (!meta.url) { const m = /https?:\/\/\S+/.exec(meta.metin); if (m) { meta.url = m[0]; meta.metin = meta.metin.replace(m[0], '').trim(); } }
+  await c.put('paylasim/' + id + '/meta', new Response(JSON.stringify(meta), { headers: { 'content-type': 'application/json' } }));
+  return Response.redirect('./#gelen/yeni/' + id, 303);
+}
+
 // Önce önbellek, arkada güncelle; sadece kendi dosyalarımız
 self.addEventListener('fetch', e => {
   const u = new URL(e.request.url);
+  if (e.request.method === 'POST' && u.origin === self.location.origin && u.pathname.endsWith('/paylas')) {
+    e.respondWith(paylasimiSakla(e.request));
+    return;
+  }
   if (e.request.method !== 'GET' || u.origin !== self.location.origin) return;
   e.respondWith(caches.open(SURUM).then(async c => {
     const eski = await c.match(e.request, { ignoreSearch: true });

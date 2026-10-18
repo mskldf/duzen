@@ -184,6 +184,8 @@
     let hafta = bas, aktif = null;
     const plan = [];
     for (const a of albumler) {
+      // Kuyruğa sonradan eklenen albüm eklendiği haftadan önce başlamış sayılmaz
+      if (a.eklendi) { const e = haftaBasi(tarihAyristir(a.eklendi)); if (e > hafta) hafta = e; }
       const satir = { album: a, hafta: isoTarih(hafta) };
       if (a.dinlendi) {
         plan.push(satir);
