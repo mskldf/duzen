@@ -27,6 +27,10 @@
       const m = /^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/.exec(b.saat || '');
       if (m) satirlar.push({ bas: dakika(m[1].padStart(5, '0')), bit: dakika(m[2].padStart(5, '0')), ad: b.is, saat: b.saat });
     }
+    for (const e of D.takvimGunu(simdi).saatli) {
+      const [b1, b2] = e.saat.split('-');
+      satirlar.push({ bas: dakika(b1), bit: dakika(b2 || b1), ad: e.baslik, saat: e.saat, an: !b2 });
+    }
     if (plan.uyku) {
       satirlar.push({ bas: dakika(plan.uyku.kalkis), bit: dakika(plan.uyku.kalkis), ad: 'Kalkış', saat: plan.uyku.kalkis, an: true });
       satirlar.push({ bas: dakika(plan.uyku.isik), bit: dakika(plan.uyku.isik), ad: 'Işık kapanır', saat: plan.uyku.isik, an: true });

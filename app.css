@@ -139,6 +139,10 @@ h2 {
 .plan-is { min-width: 0; }
 .plan-satir.simdi .plan-saat { color: var(--vurgu); }
 .plan-satir.simdi::before { background: var(--vurgu); width: 14px; }
+.plan-satir.takvim::before { background: #86b6ef; height: 8px; width: 8px; top: 16px; left: -5px; border-radius: 50%; }
+.plan-satir.takvim .plan-is { color: #cfe0f7; }
+.tum-gun { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.tum-gun span { padding: 2px 10px; border: 1px solid #86b6ef; border-radius: 999px; font-size: 14px; color: #cfe0f7; }
 
 /* ---------- kartlar ---------- */
 .kart { margin: 22px 0 0; padding: 12px 14px 14px; border: 1px solid var(--cerceve); border-radius: 4px; background: rgba(11, 26, 43, 0.72); }

@@ -5,7 +5,7 @@
   const SAHIP = 'mskldf', DEPO = 'duzen-veri', DAL = 'main';
   const API = 'https://api.github.com';
   const KONUM = { lat: 41.06, lon: 28.99 };
-  const ILGILI = /^(defter|koc|is|muzik|saat|gelen)\//;
+  const ILGILI = /^(defter|koc|is|muzik|saat|gelen|takvim)\//;
   const IKILI = /\.(jpe?g|png|webp|gif|zip)$/i;  // fotoğraflar ve arşivler eşitlenmez, gerektiğinde ayrıca alınır
 
   // ---------- yerel saklama ----------
@@ -254,6 +254,19 @@
       durum.anahtar ? 'Eşitleniyor; birkaç saniye sürebilir.' : 'Bu cihazda anahtar yok. <button class="metin-dugme" data-ac="ayar">Ayarlar\'ı aç</button> ve GitHub anahtarını gir.');
   }
 
+  // Bir günün takvim etkinlikleri: saatliler "SS:DD-SS:DD", tüm gün olanlar ayrı
+  function takvimGunu(gun) {
+    const tk = jsonOku('takvim/yakin.json');
+    const iso = L.isoTarih(gun);
+    const tum = (tk && tk.etkinlikler) || [];
+    const saatli = tum.filter(e => !e.tum_gun && String(e.bas).slice(0, 10) === iso).map(e => {
+      const bas = String(e.bas).slice(11, 16), bit = String(e.bit || '').slice(0, 10) === iso ? String(e.bit).slice(11, 16) : '';
+      return Object.assign({}, e, { saat: bit && bit !== bas ? bas + '-' + bit : bas });
+    });
+    const tumGun = tum.filter(e => e.tum_gun && e.bas <= iso && (e.bit || e.bas) >= iso);
+    return { saatli, tumGun };
+  }
+
   function askerlikKarti(hm, simdi) {
     const a = hm.askerlik;
     if (!Array.isArray(a) || a.length !== 2) return '';
@@ -288,12 +301,15 @@
     if (plan.uyku) satirlar.push({ saat: plan.uyku.kalkis, baslik: 'Kalkış', alt: '' });
     for (const b of plan.bloklar) satirlar.push({ saat: b.saat, baslik: b.is, alt: b.kulvar });
     if (plan.uyku) satirlar.push({ saat: plan.uyku.isik, baslik: 'Işık kapanır', alt: 'Son yarım saat telefon yok' });
+    // Google Takvim (takvim/yakin.json): o günün etkinlikleri plana karışır, tüm gün olanlar üstte
+    const gunTakvim = takvimGunu(hedef);
+    for (const e of gunTakvim.saatli) satirlar.push({ saat: e.saat, baslik: e.baslik, alt: e.konum ? e.konum + ' · Takvim' : 'Takvim', takvim: true });
     satirlar.sort((a, b) => L.saatAnahtari(a.saat) - L.saatAnahtari(b.saat));
     const dk = simdi.getHours() * 60 + simdi.getMinutes();
     const planHtml = satirlar.map(s => {
       const m = /^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})$/.exec(s.saat || '');
       const simdiMi = !yarin && m && dk >= Number(m[1]) * 60 + Number(m[2]) && dk < Number(m[3]) * 60 + Number(m[4]);
-      return '<li class="plan-satir' + (simdiMi ? ' simdi' : '') + '"><span class="plan-saat sayi">' + esc(s.saat) + '</span>' +
+      return '<li class="plan-satir' + (simdiMi ? ' simdi' : '') + (s.takvim ? ' takvim' : '') + '"><span class="plan-saat sayi">' + esc(s.saat) + '</span>' +
         '<span class="plan-is">' + esc(s.baslik) + (s.alt ? '<small>' + esc(s.alt) + '</small>' : '') + '</span></li>';
     }).join('');
     const serbest = plan.serbest ? '<p class="not">Haftada bir serbest akşam: ' + esc(plan.serbest.is) + ' (ofis günü ' + esc(plan.serbest.baslangic_ofis) + ', ev günü ' + esc(plan.serbest.baslangic_ev) + ' sonrası).</p>' : '';
@@ -330,7 +346,8 @@
     return '<article class="gun">' +
       '<header class="gun-bas"><h1>' + (yarin ? 'Yarın' : 'Bugün') + '</h1><p class="gun-tarih">' + esc(L.tarihYazi(hedef)) + '</p>' + havaSatiri(hedef, yarin) + '</header>' +
       kapatKarti + ekKartlar('bugun-ust', simdi) + askerlikKarti(hm, simdi) +
-      '<section><h2>Plan</h2>' + (planHtml ? '<ol class="plan">' + planHtml + '</ol>' : '<p class="not">Bu gün için iskelette blok yok.</p>') + serbest + buAksam + '</section>' +
+      '<section><h2>Plan</h2>' + (gunTakvim.tumGun.length ? '<p class="tum-gun">' + gunTakvim.tumGun.map(e => '<span>' + esc(e.baslik) + '</span>').join('') + '</p>' : '') +
+      (planHtml ? '<ol class="plan">' + planHtml + '</ol>' : '<p class="not">Bu gün için iskelette blok yok.</p>') + serbest + buAksam + '</section>' +
       ekKartlar('bugun-plan-alti', simdi) +
       '<section><h2>İş</h2>' + isHtml + cuma + '</section>' +
       '<section><h2>Sıradaki işler</h2>' + (projeHtml ? '<ul class="liste">' + projeHtml + '</ul>' : '<p class="not">Devam eden proje yok.</p>') + '</section>' +
@@ -873,7 +890,7 @@
   // ---------- modüller ----------
   const MODUL_API = {
     L, durum, sakla, esc, md, tost, hataGoster, pencereAc, islemle, hataMetni, gh, tazeDosya, dosyaYaz, degistirVeYaz,
-    kayitEkle, kayitlarEkle, metin, jsonOku, projeler, gorevler, kayitlar, iskelet, havuz, ciz, esitle, b64Yap, b64Coz, gorevSatiri, bosDurum,
+    kayitEkle, kayitlarEkle, metin, jsonOku, projeler, gorevler, kayitlar, iskelet, havuz, ciz, esitle, b64Yap, b64Coz, gorevSatiri, bosDurum, takvimGunu,
     SAHIP, DEPO, DAL,
     gorunum(ad, fn, sekme) { ekGorunumler[ad] = { fn, sekme: sekme || ad }; },
     kart(yer, fn) { (kartUreticiler[yer] = kartUreticiler[yer] || []).push(fn); },
