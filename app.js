@@ -81,10 +81,26 @@
   }
 
   function hataMetni(e) {
-    if (e.status === 401) return 'Anahtar geçersiz ya da süresi dolmuş. Ayarlar\'dan yeni anahtar gir.';
-    if (e.status === 403 || e.status === 404) return 'Anahtarın duzen-veri deposuna erişimi yok. Anahtarı oluştururken bu depoyu seçip İçerik iznini okuma ve yazma yap.';
+    const detay = e.detay ? ' (GitHub: ' + e.detay + ')' : '';
+    if (e.status === 401) return 'Anahtar geçersiz ya da süresi dolmuş. Yeni anahtar oluşturup gir.' + detay;
+    if (e.status === 404) return 'Anahtar duzen-veri deposunu göremiyor. Anahtarı oluştururken Repository access kısmında Only select repositories deyip duzen-veri\'yi seç.' + detay;
+    if (e.status === 403 && /rate limit/i.test(e.detay || '')) return 'GitHub istek sınırı doldu, birkaç dakika sonra tekrar dene.' + detay;
+    if (e.status === 403) return 'Anahtarın depoya yazma izni yok. Permissions altında Repositories sekmesinde Contents iznini Read and write yap.' + detay;
     if (!navigator.onLine) return 'İnternet yok. Son kopya gösteriliyor.';
-    return 'Eşitleme olmadı (' + (e.detay || e.message) + '). Son kopya gösteriliyor.';
+    return 'GitHub\'a ulaşılamadı' + (e.status ? ' (' + e.status + ')' : '') + detay + '. Son kopya gösteriliyor.';
+  }
+
+  // Açık bir pencere varsa hatayı onun içinde göster (bildirim pencerenin arkasında kalıyor)
+  function hataGoster(metin) {
+    const d = document.querySelector('dialog[open]');
+    const yer = d && d.querySelector('.dialog-hata');
+    if (yer) { yer.textContent = metin; yer.hidden = false; }
+    else tost(metin, true);
+  }
+  function pencereAc(id) {
+    const d = $('#' + id);
+    d.querySelectorAll('.dialog-hata').forEach(x => { x.hidden = true; x.textContent = ''; });
+    d.showModal();
   }
 
   async function esitle(sessiz) {
@@ -473,10 +489,10 @@
 
   let ekleTuru = 'uyku';
   function ekleAc(tur) {
-    if (!durum.anahtar) { ayarAc(); tost('Girdi eklemek için önce anahtar gir.', true); return; }
+    if (!durum.anahtar) { ayarAc(); hataGoster('Girdi eklemek için önce anahtar gir.'); return; }
     ekleTuru = tur || ekleTuru;
     $('#ekle-alanlar').innerHTML = ekleFormu(ekleTuru);
-    $('#ekleDialog').showModal();
+    pencereAc('ekleDialog');
   }
 
   async function ekleKaydet(form) {
@@ -489,7 +505,7 @@
       else if (tip === 'number') kayit[ad] = Number(x);
       else kayit[ad] = String(x).trim();
     }
-    if (Object.keys(kayit).length <= 3) { tost('Boş girdi kaydedilmedi.', true); return false; }
+    if (Object.keys(kayit).length <= 3) { hataGoster('Boş girdi kaydedilmedi; en az bir alanı doldur.'); return false; }
     if (kayit.kitap) sakla.koy('sonKitap', kayit.kitap);
     await kayitEkle(kayit);
     return true;
@@ -499,7 +515,7 @@
   async function gorevKaydet(form) {
     const v = new FormData(form);
     const baslik = String(v.get('baslik') || '').trim();
-    if (!baslik) { tost('Görevin adını yaz.', true); return false; }
+    if (!baslik) { hataGoster('Görevin adını yaz.'); return false; }
     const bugun = L.isoTarih(new Date());
     const g = {
       id: bugun + '-' + baslik.toLocaleLowerCase('tr').replace(/[^a-z0-9çğıöşü]+/g, '-').replace(/^-|-$/g, '').slice(0, 40),
@@ -528,20 +544,28 @@
     $('#ayar-anahtar').value = '';
     $('#ayar-durum').textContent = durum.anahtar ? 'Bu cihazda anahtar kayıtlı.' + (durum.sonEsitleme ? ' Son eşitleme: ' + new Date(durum.sonEsitleme).toLocaleString('tr-TR') + '.' : '') : 'Bu cihazda anahtar yok.';
     $('#anahtarSil').hidden = !durum.anahtar;
-    $('#ayarDialog').showModal();
+    if (!$('#ayarDialog').open) pencereAc('ayarDialog');
   }
 
   async function anahtarKaydet() {
     const a = $('#ayar-anahtar').value.trim();
-    if (!a) { tost('Anahtarı yapıştır.', true); return; }
+    if (!a) { hataGoster('Anahtarı yapıştır.'); return; }
+    const btn = $('#anahtarKaydet');
+    btn.disabled = true;
     durum.anahtar = a;
     try {
-      await gh(`/repos/${SAHIP}/${DEPO}`);
+      // Hem okuma hem yazma iznini dene: depo bilgisi ve izinler
+      const depo = await gh(`/repos/${SAHIP}/${DEPO}`);
+      if (depo && depo.permissions && depo.permissions.push === false) {
+        throw Object.assign(new Error('yazma yok'), { status: 403, detay: 'contents: read-only' });
+      }
     } catch (e) {
       durum.anahtar = sakla.al('anahtar', '');
-      tost(hataMetni(e), true);
+      hataGoster(hataMetni(e));
+      btn.disabled = false;
       return;
     }
+    btn.disabled = false;
     sakla.koy('anahtar', a);
     $('#ayarDialog').close();
     tost('Anahtar kaydedildi');
@@ -552,7 +576,7 @@
   function islemle(btn, fn, basari) {
     btn.disabled = true;
     return fn().then(ok => { if (ok !== false) { if (basari) tost(basari); ciz(); } return ok; })
-      .catch(e => { tost(e.status ? hataMetni(e) : e.message, true); return false; })
+      .catch(e => { hataGoster(e.status ? hataMetni(e) : e.message); return false; })
       .finally(() => { btn.disabled = false; });
   }
 
@@ -560,7 +584,7 @@
     const t = e.target.closest('button, [data-ac]');
     if (!t) return;
     if (t.dataset.ac === 'ayar') { e.preventDefault(); ayarAc(); }
-    else if (t.dataset.ac === 'gorev') { e.preventDefault(); if (!durum.anahtar) { ayarAc(); return; } $('#gorevForm').reset(); $('#gorevDialog').showModal(); }
+    else if (t.dataset.ac === 'gorev') { e.preventDefault(); if (!durum.anahtar) { ayarAc(); return; } $('#gorevForm').reset(); pencereAc('gorevDialog'); }
     else if (t.dataset.ekle) ekleAc(t.dataset.ekle);
     else if (t.dataset.tur) { ekleTuru = t.dataset.tur; $('#ekle-alanlar').innerHTML = ekleFormu(ekleTuru); }
     else if (t.dataset.gorevBitti) islemle(t, () => gorevDurum(t.dataset.gorevBitti, 'bitti'), 'Bitti olarak işaretlendi');
@@ -604,7 +628,15 @@
     if (gun !== sonGun || (rota().sayfa === 'bugun' && !acikDialog)) { sonGun = gun; if (!acikDialog) ciz(); }
   }, 15000);
 
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => { /* çevrimdışı olmadan devam */ });
+  if ('serviceWorker' in navigator) {
+    // Yeni sürüm devreye girince sayfayı bir kez yenile
+    const ilkKontrol = !!navigator.serviceWorker.controller;
+    let yenilendi = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (ilkKontrol && !yenilendi && !document.querySelector('dialog[open]')) { yenilendi = true; location.reload(); }
+    });
+    navigator.serviceWorker.register('sw.js').catch(() => { /* çevrimdışı olmadan devam */ });
+  }
 
   ciz();
   havaGetir();

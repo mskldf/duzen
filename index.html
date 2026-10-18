@@ -47,6 +47,7 @@
   <form id="ekleForm" method="dialog">
     <h2 id="ekle-baslik">Hızlı ekle</h2>
     <div id="ekle-alanlar"></div>
+    <p class="dialog-hata" role="alert" hidden></p>
     <div class="dialog-alt">
       <button type="button" class="metin-dugme" data-kapat="ekleDialog">Vazgeç</button>
       <button type="submit" class="dugme">Kaydet</button>
@@ -67,6 +68,7 @@
       <label class="alan" for="gorev-dl">Deadline<input id="gorev-dl" name="deadline" type="date"></label>
     </div>
     <label class="alan" for="gorev-not">Not<textarea id="gorev-not" name="not" rows="2"></textarea></label>
+    <p class="dialog-hata" role="alert" hidden></p>
     <div class="dialog-alt">
       <button type="button" class="metin-dugme" data-kapat="gorevDialog">Vazgeç</button>
       <button type="submit" class="dugme">Görevi ekle</button>
@@ -83,13 +85,14 @@
       <summary>Anahtar nasıl alınır</summary>
       <ol>
         <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub'da yeni fine-grained token sayfasını</a> aç.</li>
-        <li>Adına cihazı yaz (ör. Düzen tablet), süreyi seç.</li>
-        <li>Repository access: <b>Only select repositories</b>, sadece <b>mskldf/duzen-veri</b>.</li>
-        <li>Permissions altında Repository permissions, <b>Contents: Read and write</b>.</li>
-        <li>Generate token deyip çıkan anahtarı buraya yapıştır.</li>
+        <li><b>Token name</b>: cihazın adı (ör. Düzen ThinkPad). <b>Expiration</b>: No expiration ya da uzun bir süre.</li>
+        <li><b>Repository access</b>: Only select repositories, sonra Select repositories'den <b>duzen-veri</b>.</li>
+        <li><b>Permissions</b>: Repositories sekmesinde Add permissions, <b>Contents</b>, erişimi <b>Read and write</b> yap. Account sekmesine bir şey ekleme.</li>
+        <li><b>Generate token</b> deyip çıkan anahtarı kopyala, buraya yapıştır.</li>
       </ol>
       <p>Anahtar sadece bu cihazda saklanır. Kimseyle paylaşma, sohbete de yazma.</p>
     </details>
+    <p class="dialog-hata" role="alert" hidden></p>
     <div class="dialog-alt">
       <button type="button" class="metin-dugme" id="anahtarSil" hidden>Anahtarı bu cihazdan sil</button>
       <button type="button" class="metin-dugme" data-kapat="ayarDialog">Kapat</button>

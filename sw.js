@@ -1,5 +1,5 @@
 /* Düzen: uygulama kabuğunu önbellekte tutar; veri ve hava ağdan gelir (uygulama kendi kopyasını saklar). */
-const SURUM = 'duzen-v1';
+const SURUM = 'duzen-v2';
 const KABUK = [
   './', 'index.html', 'app.css', 'lib.js', 'app.js', 'manifest.webmanifest',
   'vendor/marked.min.js', 'fonts/fonts.css',
@@ -11,7 +11,10 @@ const KABUK = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(SURUM).then(c => c.addAll(KABUK)).then(() => self.skipWaiting()));
+  // Tarayıcının HTTP önbelleğini atla, yeni sürümü ağdan al
+  e.waitUntil(caches.open(SURUM)
+    .then(c => c.addAll(KABUK.map(u => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
