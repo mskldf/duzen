@@ -5,7 +5,8 @@
   const SAHIP = 'mskldf', DEPO = 'duzen-veri', DAL = 'main';
   const API = 'https://api.github.com';
   const KONUM = { lat: 41.06, lon: 28.99 };
-  const ILGILI = /^(defter|koc|is)\//;
+  const ILGILI = /^(defter|koc|is|muzik|saat|gelen)\//;
+  const IKILI = /\.(jpe?g|png|webp|gif|zip)$/i;  // fotoğraflar ve arşivler eşitlenmez, gerektiğinde ayrıca alınır
 
   // ---------- yerel saklama ----------
   const sakla = {
@@ -109,7 +110,7 @@
     try {
       const agac = await gh(`/repos/${SAHIP}/${DEPO}/git/trees/${DAL}?recursive=1`);
       const yeni = {};
-      for (const o of agac.tree) if (o.type === 'blob' && ILGILI.test(o.path)) yeni[o.path] = o.sha;
+      for (const o of agac.tree) if (o.type === 'blob' && ILGILI.test(o.path) && !IKILI.test(o.path)) yeni[o.path] = o.sha;
       const degisen = Object.keys(yeni).filter(y => !durum.dosyalar[y] || durum.dosyalar[y].sha !== yeni[y]);
       for (let i = 0; i < degisen.length; i += 6) {
         await Promise.all(degisen.slice(i, i + 6).map(async y => {
@@ -159,11 +160,17 @@
     }
   }
 
-  async function kayitEkle(kayit) {
-    const yol = 'koc/kayit/' + kayit.t.slice(0, 7) + '.jsonl';
-    await degistirVeYaz(yol, eski => (eski && !eski.endsWith('\n') ? eski + '\n' : eski) + JSON.stringify(kayit) + '\n',
-      'Koç girdisi: ' + kayit.tur + ' ' + kayit.t);
+  // Girdileri ay dosyalarına ekler; aynı aydakiler tek seferde yazılır
+  async function kayitlarEkle(liste, mesaj) {
+    const gruplar = {};
+    for (const k of liste) (gruplar[k.t.slice(0, 7)] = gruplar[k.t.slice(0, 7)] || []).push(k);
+    for (const ay of Object.keys(gruplar).sort()) {
+      const satirlar = gruplar[ay].map(k => JSON.stringify(k)).join('\n') + '\n';
+      await degistirVeYaz('koc/kayit/' + ay + '.jsonl', eski => (eski && !eski.endsWith('\n') ? eski + '\n' : eski) + satirlar,
+        mesaj || ('Koç girdisi: ' + gruplar[ay].map(k => k.tur).join(', ') + ' ' + gruplar[ay][0].t));
+    }
   }
+  const kayitEkle = kayit => kayitlarEkle([kayit]);
 
   async function gorevDegistir(fn, mesaj) {
     await degistirVeYaz('is/gorevler.json', eski => {
@@ -225,7 +232,18 @@
   }
 
   // ---------- görünümler ----------
-  const GIRDI_ADI = { uyku: 'Uyku', sabah_blogu: 'Sabah bloğu', okuma: 'Okuma', bisiklet: 'Bisiklet', atolye: 'Atölye', konusma: 'Konuşma', is: 'İş notu', not: 'Not' };
+  const GIRDI_ADI = { uyku: 'Uyku', sabah_blogu: 'Sabah bloğu', okuma: 'Okuma', bisiklet: 'Bisiklet', atolye: 'Atölye', konusma: 'Konuşma', is: 'İş notu', not: 'Not', film: 'Film', muzik: 'Albüm' };
+  const eksikEtiketi = (e, gunIso) => (e.tur === 'okuma' && e.t !== gunIso ? 'Dünkü okuma' : GIRDI_ADI[e.tur]);
+  // Defterdeki projelerin Düzen içindeki panelleri
+  const PANELLER = [
+    { ad: 'Film defteri', ac: 'Film defterini aç', href: 'film.html', proje: 'letterboxd-paneli' },
+  ];
+  const ekGorunumler = {};       // modüllerin görünümleri: ad -> { fn, sekme }
+  const kartUreticiler = {};     // modüllerin Bugün kartları: yer -> [fn]
+  const cizimSonrasi = [];       // her çizimden sonra çalışan modül işleri
+  function ekKartlar(yer, simdi) {
+    return (kartUreticiler[yer] || []).map(fn => { try { return fn(simdi) || ''; } catch (e) { console.error(e); return ''; } }).join('');
+  }
 
   function bosDurum(baslik, aciklama) {
     return '<div class="bos"><p class="bos-baslik">' + esc(baslik) + '</p><p>' + aciklama + '</p></div>';
@@ -236,10 +254,35 @@
       durum.anahtar ? 'Eşitleniyor; birkaç saniye sürebilir.' : 'Bu cihazda anahtar yok. <button class="metin-dugme" data-ac="ayar">Ayarlar\'ı aç</button> ve GitHub anahtarını gir.');
   }
 
+  function askerlikKarti(hm, simdi) {
+    const a = hm.askerlik;
+    if (!Array.isArray(a) || a.length !== 2) return '';
+    const bugun = L.sadeceGun(simdi);
+    const iso = L.isoTarih(bugun);
+    if (iso < a[0]) {
+      const n = L.kalanGun(a[0], bugun);
+      if (n > 30) return '';
+      const pler = projeler().filter(p => p.meta.son_gun && p.meta.son_gun < a[0] && !['bitti', 'dustu'].includes(p.meta.durum));
+      const isler = gorevler().filter(g => g.durum !== 'bitti' && [g.son_tarih, g.deadline].some(t => t && t < a[0]));
+      const satirlar = pler.map(p => '<li><a class="satir-bag" href="#defter/' + esc(p.slug) + '"><span class="satir-baslik">' + esc(p.meta.baslik) + '</span>' +
+        '<small>Son gün ' + esc(L.kisaTarih(L.tarihAyristir(p.meta.son_gun))) + ' (' + esc(L.kalanYazi(L.kalanGun(p.meta.son_gun, bugun))) + ')</small></a></li>')
+        .concat(L.gorevSirala(isler).map(gorevSatiri));
+      return '<section class="kart"><h2>' + (n === 1 ? 'Askerlik yarın' : 'Askerliğe ' + n + ' gün') + '</h2>' +
+        (satirlar.length ? '<p class="not">Ondan önce bitmesi gerekenler:</p><ul class="liste">' + satirlar.join('') + '</ul>'
+          : '<p class="not">Son tarihi askerlikten önce olan iş yok.</p>') + '</section>';
+    }
+    if (iso <= a[1]) {
+      return '<section class="kart"><h2>Askerlik</h2><p class="not">Dönüşe ' + L.kalanGun(a[1], bugun) +
+        ' gün. Bu sürede eksik girdi uyarısı yok; 2027 hızı da bu günleri saymıyor.</p></section>';
+    }
+    return '';
+  }
+
   function bugunGorunumu() {
     if (!veriVar()) return ilkKurulum();
     const simdi = new Date();
     const { yarin, hedef } = L.gunModu(simdi);
+    const hm = (havuz() || {}).meta || {};
     const plan = L.gunPlani(iskelet(), hedef);
     const satirlar = [];
     if (plan.uyku) satirlar.push({ saat: plan.uyku.kalkis, baslik: 'Kalkış', alt: '' });
@@ -254,6 +297,11 @@
         '<span class="plan-is">' + esc(s.baslik) + (s.alt ? '<small>' + esc(s.alt) + '</small>' : '') + '</span></li>';
     }).join('');
     const serbest = plan.serbest ? '<p class="not">Haftada bir serbest akşam: ' + esc(plan.serbest.is) + ' (ofis günü ' + esc(plan.serbest.baslangic_ofis) + ', ev günü ' + esc(plan.serbest.baslangic_ev) + ' sonrası).</p>' : '';
+    // Bu akşam okumaya kalan süre: sığan bir film için seçiciye
+    const okuma = L.okumaBloku(L.gunPlani(iskelet(), L.sadeceGun(simdi)));
+    const okumayaKalan = okuma ? L.saatAnahtari(okuma.saat) - dk : null;
+    const buAksam = simdi.getHours() >= 17 && okumayaKalan >= 60 && !L.haricMi(L.isoTarih(simdi), hm.haric)
+      ? '<p class="not">Bu akşam okumaya ' + okumayaKalan + ' dk var. <a href="film.html#secici&amp;okuma">Sığan bir film seç</a></p>' : '';
 
     // iş: açık ve devam eden görevler, en yakın tarihli önce
     const acik = L.gorevSirala(gorevler().filter(g => g.durum === 'acik' || g.durum === 'devam'));
@@ -266,17 +314,25 @@
     const projeHtml = aktif.map(p => '<li><a class="satir-bag" href="#defter/' + esc(p.slug) + '"><span class="satir-baslik">' + esc(p.meta.baslik) + '</span>' +
       (p.sirada ? '<small>' + esc(p.sirada) + '</small>' : '') + '</a></li>').join('');
 
-    // eksik girdiler (bugün için)
-    const eksik = L.eksikGirdiler(kayitlar(), L.sadeceGun(simdi));
-    const eksikHtml = eksik.length ? '<div class="cipler">' + eksik.map(t => '<button class="cip" data-ekle="' + t + '">+ ' + esc(GIRDI_ADI[t]) + '</button>').join('') + '</div>'
-      : '<p class="not">Bugünün girdileri tamam.</p>';
+    // eksik girdiler: kapanış günü için (gece 04:00'e kadar önceki gün)
+    const kapanis = L.kapanisGunu(simdi);
+    const kapIso = L.isoTarih(kapanis);
+    const eksik = L.eksikGirdiler(kayitlar(), kapanis, hm.haric);
+    const eksikHtml = eksik.length ? '<div class="cipler">' + eksik.map(e => '<button class="cip" data-ekle="' + e.tur + '" data-tarih="' + e.t + '">+ ' + esc(eksikEtiketi(e, kapIso)) + '</button>').join('') +
+      '<button class="cip cip-vurgu" data-ac="kapat">Günü kapat</button></div>'
+      : '<p class="not">' + (L.haricMi(kapIso, hm.haric) ? 'Bugün takip dışı.' : 'Girdiler tamam.') + '</p>';
+    const aksam = simdi.getHours() >= 18 || simdi.getHours() < 4;
+    const kapatKarti = aksam && eksik.length ? '<section class="kart kart-vurgu"><div class="kart-ust"><h2>Günü kapat</h2><button class="dugme" data-ac="kapat">Günü kapat</button></div>' +
+      '<p class="not">Eksik: ' + eksik.map(e => esc(eksikEtiketi(e, kapIso))).join(', ') + '</p></section>' : '';
 
     return '<article class="gun">' +
       '<header class="gun-bas"><h1>' + (yarin ? 'Yarın' : 'Bugün') + '</h1><p class="gun-tarih">' + esc(L.tarihYazi(hedef)) + '</p>' + havaSatiri(hedef, yarin) + '</header>' +
-      '<section><h2>Plan</h2>' + (planHtml ? '<ol class="plan">' + planHtml + '</ol>' : '<p class="not">Bu gün için iskelette blok yok.</p>') + serbest + '</section>' +
+      kapatKarti + ekKartlar('bugun-ust', simdi) + askerlikKarti(hm, simdi) +
+      '<section><h2>Plan</h2>' + (planHtml ? '<ol class="plan">' + planHtml + '</ol>' : '<p class="not">Bu gün için iskelette blok yok.</p>') + serbest + buAksam + '</section>' +
+      ekKartlar('bugun-plan-alti', simdi) +
       '<section><h2>İş</h2>' + isHtml + '</section>' +
       '<section><h2>Sıradaki işler</h2>' + (projeHtml ? '<ul class="liste">' + projeHtml + '</ul>' : '<p class="not">Devam eden proje yok.</p>') + '</section>' +
-      '<section><h2>' + (yarin ? 'Bugünden eksik kalan girdiler' : 'Eksik girdiler') + '</h2>' + eksikHtml + '</section>' +
+      (kapatKarti ? '' : '<section><h2>' + (yarin ? 'Bugünden eksik kalan girdiler' : 'Eksik girdiler') + '</h2>' + eksikHtml + '</section>') +
       '</article>';
   }
 
@@ -305,7 +361,8 @@
     for (const p of pler) bul(p.meta.durum === 'bitti' ? 'Bitenler' : (p.meta.donem || 'Dönemsiz')).p.push(p);
     gruplar.sort((a, b) => (a.ad === 'Bitenler') - (b.ad === 'Bitenler'));
     const ust = '<div class="defter-ust"><a class="sekme-bag' + (secili === 'plan' ? ' secili' : '') + '" href="#defter/plan">Düzen planı</a>' +
-      '<a class="sekme-bag' + (secili === 'havuz' ? ' secili' : '') + '" href="#defter/havuz">Havuz 2027</a></div>';
+      '<a class="sekme-bag' + (secili === 'havuz' ? ' secili' : '') + '" href="#defter/havuz">Havuz 2027</a></div>' +
+      '<div class="defter-ust paneller" aria-label="Paneller">' + PANELLER.map(p => '<a class="sekme-bag panel-bag" href="' + esc(p.href) + '">' + esc(p.ad) + '</a>').join('') + '</div>';
     return ust + gruplar.map(g => '<section class="grup"><h2>' + esc(g.ad) + '</h2><ul class="liste">' + g.p.map(p =>
       '<li><a class="satir-bag' + (p.slug === secili ? ' secili' : '') + '" href="#defter/' + esc(p.slug) + '">' +
       '<span class="satir-ust"><span class="satir-baslik">' + esc(p.meta.baslik || p.slug) + '</span>' + durumIsareti(p.meta.durum) + '</span>' +
@@ -330,7 +387,9 @@
     const m = p.meta;
     const bag = (m.bagimlilik || []).length ? '<p class="ek"><span>Bağımlılık:</span> ' + m.bagimlilik.map(esc).join(', ') + '</p>' : '';
     const sohbet = (m.sohbet || []).length ? '<p class="ek"><span>Sohbet:</span> ' + m.sohbet.map((u, i) => '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + (m.sohbet.length > 1 ? 'sohbet ' + (i + 1) : 'sohbeti aç') + '</a>').join(', ') + '</p>' : '';
-    return '<article class="sayfa">' + antet(m) + bag + sohbet + '<div class="metin">' + md(L.basliksizGovde(p.govde)) + '</div></article>';
+    const panel = PANELLER.find(x => x.proje === p.slug);
+    const panelBag = panel ? '<p class="ek"><a class="dugme panel-dugme" href="' + esc(panel.href) + '">' + esc(panel.ac) + '</a></p>' : '';
+    return '<article class="sayfa">' + antet(m) + panelBag + bag + sohbet + '<div class="metin">' + md(L.basliksizGovde(p.govde)) + '</div></article>';
   }
 
   function belgeSayfasi(yol) {
@@ -444,18 +503,22 @@
     const simdi = new Date();
     $('#saat').textContent = L.tarihYazi(simdi) + ', ' + L.saatYazi(simdi);
     const { sayfa, arg } = rota();
-    document.querySelectorAll('[data-sekme]').forEach(a => a.setAttribute('aria-current', a.dataset.sekme === sayfa ? 'page' : 'false'));
+    const ek = ekGorunumler[sayfa];
+    const sekme = ek ? ek.sekme : sayfa;
+    document.querySelectorAll('[data-sekme]').forEach(a => a.setAttribute('aria-current', a.dataset.sekme === sekme ? 'page' : 'false'));
+    document.body.dataset.sayfa = sayfa;
     const dc = $('#durum');
     if (durum.hata) { dc.textContent = durum.hata; dc.hidden = false; dc.className = 'durum-cubugu hata'; }
     else if (durum.esitleniyor) { dc.textContent = 'Eşitleniyor…'; dc.hidden = false; dc.className = 'durum-cubugu'; }
     else dc.hidden = true;
-    const gorunumler = { bugun: bugunGorunumu, defter: () => defterGorunumu(arg), is: isGorunumu, koc: kocGorunumu };
-    const fn = gorunumler[sayfa] || bugunGorunumu;
+    const gorunumler = { bugun: bugunGorunumu, defter: () => defterGorunumu(arg), is: () => isGorunumu(arg), koc: kocGorunumu };
+    const fn = ek ? () => ek.fn(arg) : (gorunumler[sayfa] || bugunGorunumu);
     const ana = $('#gorunum');
     const kaydirma = ana.dataset.sayfa === sayfa + '/' + arg ? window.scrollY : 0;
     ana.innerHTML = fn();
     ana.dataset.sayfa = sayfa + '/' + arg;
     if (kaydirma) window.scrollTo(0, kaydirma);
+    for (const fn2 of cizimSonrasi) { try { fn2(sayfa, arg, ana); } catch (e) { console.error(e); } }
   }
 
   // ---------- hızlı ekle ----------
@@ -470,7 +533,7 @@
     not: [['metin', 'Not', 'textarea']],
   };
 
-  function ekleFormu(tur) {
+  function ekleFormu(tur, tarih) {
     const secenekler = Object.keys(ALANLAR).map(t => '<button type="button" class="cip' + (t === tur ? ' secili' : '') + '" data-tur="' + t + '">' + esc(GIRDI_ADI[t]) + '</button>').join('');
     const atolyeProjeleri = projeler().filter(p => /Atölye/.test(p.meta.kulvar || '') && p.meta.durum !== 'bitti');
     const sonKitap = sakla.al('sonKitap', '');
@@ -483,16 +546,91 @@
       return '<label class="alan" for="' + id + '">' + etiket + '<input id="' + id + '" name="' + ad + '" type="' + tip + '"' + (tip === 'number' ? ' inputmode="numeric" min="0"' : '') + deger + '></label>';
     };
     return '<div class="cipler" role="group" aria-label="Girdi türü">' + secenekler + '</div>' +
-      '<label class="alan" for="ekle-tarih">Tarih<input id="ekle-tarih" name="t" type="date" value="' + L.isoTarih(new Date()) + '"></label>' +
+      '<label class="alan" for="ekle-tarih">Tarih<input id="ekle-tarih" name="t" type="date" value="' + (tarih || L.isoTarih(new Date())) + '"></label>' +
       ALANLAR[tur].map(alan).join('');
   }
 
   let ekleTuru = 'uyku';
-  function ekleAc(tur) {
+  function ekleAc(tur, tarih) {
     if (!durum.anahtar) { ayarAc(); hataGoster('Girdi eklemek için önce anahtar gir.'); return; }
-    ekleTuru = tur || ekleTuru;
-    $('#ekle-alanlar').innerHTML = ekleFormu(ekleTuru);
+    ekleTuru = ALANLAR[tur] ? tur : ekleTuru;
+    $('#ekle-alanlar').innerHTML = ekleFormu(ekleTuru, tarih);
     pencereAc('ekleDialog');
+  }
+
+  // ---------- günü kapat ----------
+  // Sabah bloğunun konusu iskeletten: "Şirket prosedürleri (net ~35 dk)" -> "Şirket prosedürleri"
+  function sabahKonusu(gun) {
+    const b = L.gunPlani(iskelet(), gun).bloklar.find(x => /^0?[4-9]:\d{2}-/.test(x.saat || ''));
+    return b ? String(b.is).replace(/\s*\([^)]*\)/g, '').replace(/:.*$/, '').trim() : '';
+  }
+
+  function kapatFormu() {
+    const gun = L.kapanisGunu(new Date());
+    const hm = (havuz() || {}).meta || {};
+    const eksik = L.eksikGirdiler(kayitlar(), gun, hm.haric);
+    const bul = t => eksik.find(e => e.tur === t);
+    const parca = [];
+    if (bul('uyku')) parca.push('<fieldset class="kapat-bolum"><legend>Uyku</legend><div class="iki-alan">' +
+      '<label class="alan">Dün gece ışık<input name="uyku_isik" type="time"></label>' +
+      '<label class="alan">Bu sabah kalkış<input name="uyku_kalkis" type="time"></label></div></fieldset>');
+    if (bul('sabah_blogu')) parca.push('<fieldset class="kapat-bolum"><legend>Sabah bloğu</legend>' +
+      '<div class="secimler"><label class="secim"><input type="radio" name="sabah_yapildi" value="evet"> Yapıldı</label>' +
+      '<label class="secim"><input type="radio" name="sabah_yapildi" value="hayir"> Yapılmadı</label></div>' +
+      '<div class="iki-alan"><label class="alan">Konu<input name="sabah_konu" type="text" value="' + esc(sabahKonusu(gun)) + '"></label>' +
+      '<label class="alan">Dakika<input name="sabah_dk" type="number" inputmode="numeric" min="0" value="35"></label></div></fieldset>');
+    const ok = bul('okuma');
+    if (ok) parca.push('<fieldset class="kapat-bolum"><legend>Dün gece okuma</legend>' +
+      '<div class="secimler"><label class="secim"><input type="radio" name="okuma_yapildi" value="evet"> Okudum</label>' +
+      '<label class="secim"><input type="radio" name="okuma_yapildi" value="hayir"> Okumadım</label></div>' +
+      '<label class="alan">Kitap<input name="okuma_kitap" type="text" value="' + esc(sakla.al('sonKitap', '')) + '"></label>' +
+      '<div class="iki-alan"><label class="alan">Sayfa<input name="okuma_sayfa" type="number" inputmode="numeric" min="0"></label>' +
+      '<label class="alan">Dakika<input name="okuma_dk" type="number" inputmode="numeric" min="0"></label></div>' +
+      '<input type="hidden" name="okuma_t" value="' + esc(ok.t) + '"></fieldset>');
+    parca.push('<label class="alan">Günden bir not (isteğe bağlı)<textarea name="not" rows="2"></textarea></label>');
+    return { gun, html: (eksik.length ? '<p class="not">Boş bıraktığın kaydedilmez.</p>' : '<p class="not">Bu günün girdileri tamam; istersen not bırak.</p>') + parca.join('') };
+  }
+
+  function kapatAc() {
+    if (!durum.anahtar) { ayarAc(); hataGoster('Önce anahtar gir.'); return; }
+    const f = kapatFormu();
+    $('#kapat-tarih').textContent = L.tarihYazi(f.gun);
+    $('#kapat-alanlar').innerHTML = f.html;
+    pencereAc('kapatDialog');
+  }
+
+  async function kapatKaydet(form) {
+    const v = new FormData(form);
+    const iso = L.isoTarih(L.kapanisGunu(new Date()));
+    const s = ad => String(v.get(ad) || '').trim();
+    const liste = [];
+    if (s('uyku_isik') || s('uyku_kalkis')) {
+      const k = { t: iso, tur: 'uyku', kaynak: 'uygulama' };
+      if (s('uyku_isik')) k.isik = s('uyku_isik');
+      if (s('uyku_kalkis')) k.kalkis = s('uyku_kalkis');
+      liste.push(k);
+    }
+    if (s('sabah_yapildi')) {
+      const k = { t: iso, tur: 'sabah_blogu', kaynak: 'uygulama', yapildi: s('sabah_yapildi') === 'evet' };
+      if (k.yapildi && s('sabah_konu')) k.konu = s('sabah_konu');
+      if (k.yapildi && s('sabah_dk')) k.dk = Number(s('sabah_dk'));
+      liste.push(k);
+    }
+    const okT = s('okuma_t');
+    if (okT && (s('okuma_yapildi') || s('okuma_sayfa') || s('okuma_dk'))) {
+      const k = { t: okT, tur: 'okuma', kaynak: 'uygulama' };
+      if (s('okuma_yapildi') === 'hayir') k.yapildi = false;
+      else {
+        if (s('okuma_kitap')) { k.kitap = s('okuma_kitap'); sakla.koy('sonKitap', k.kitap); }
+        if (s('okuma_sayfa')) k.sayfa = Number(s('okuma_sayfa'));
+        if (s('okuma_dk')) k.dk = Number(s('okuma_dk'));
+      }
+      liste.push(k);
+    }
+    if (s('not')) liste.push({ t: iso, tur: 'not', kaynak: 'uygulama', metin: s('not') });
+    if (!liste.length) { hataGoster('Kaydedilecek bir şey yok; en az bir bölümü doldur.'); return false; }
+    await kayitlarEkle(liste, 'Koç: günü kapat ' + iso);
+    return true;
   }
 
   async function ekleKaydet(form) {
@@ -584,8 +722,9 @@
     const t = e.target.closest('button, [data-ac]');
     if (!t) return;
     if (t.dataset.ac === 'ayar') { e.preventDefault(); ayarAc(); }
+    else if (t.dataset.ac === 'kapat') { e.preventDefault(); kapatAc(); }
     else if (t.dataset.ac === 'gorev') { e.preventDefault(); if (!durum.anahtar) { ayarAc(); return; } $('#gorevForm').reset(); pencereAc('gorevDialog'); }
-    else if (t.dataset.ekle) ekleAc(t.dataset.ekle);
+    else if (t.dataset.ekle) ekleAc(t.dataset.ekle, t.dataset.tarih);
     else if (t.dataset.tur) { ekleTuru = t.dataset.tur; $('#ekle-alanlar').innerHTML = ekleFormu(ekleTuru); }
     else if (t.dataset.gorevBitti) islemle(t, () => gorevDurum(t.dataset.gorevBitti, 'bitti'), 'Bitti olarak işaretlendi');
     else if (t.dataset.gorevAc) islemle(t, () => gorevDurum(t.dataset.gorevAc, 'devam'), 'Geri açıldı');
@@ -604,6 +743,11 @@
     e.preventDefault();
     const btn = e.submitter || $('#ekleForm button[type=submit]');
     islemle(btn, () => ekleKaydet(e.target), 'Kaydedildi').then(ok => { if (ok) $('#ekleDialog').close(); });
+  });
+  $('#kapatForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const btn = e.submitter || $('#kapatForm button[type=submit]');
+    islemle(btn, () => kapatKaydet(e.target), 'Gün kapandı').then(ok => { if (ok) $('#kapatDialog').close(); });
   });
   $('#gorevForm').addEventListener('submit', e => {
     e.preventDefault();
@@ -638,7 +782,32 @@
     navigator.serviceWorker.register('sw.js').catch(() => { /* çevrimdışı olmadan devam */ });
   }
 
+  // ---------- modüller ----------
+  const MODUL_API = {
+    L, durum, sakla, esc, md, tost, hataGoster, pencereAc, islemle, hataMetni, gh, tazeDosya, dosyaYaz, degistirVeYaz,
+    kayitEkle, kayitlarEkle, metin, jsonOku, projeler, gorevler, kayitlar, iskelet, havuz, ciz, esitle, b64Yap, b64Coz, gorevSatiri, bosDurum,
+    SAHIP, DEPO, DAL,
+    gorunum(ad, fn, sekme) { ekGorunumler[ad] = { fn, sekme: sekme || ad }; },
+    kart(yer, fn) { (kartUreticiler[yer] = kartUreticiler[yer] || []).push(fn); },
+    panel(p) { PANELLER.push(p); },
+    sonra(fn) { cizimSonrasi.push(fn); },
+  };
+  (window.DuzenModuller || []).forEach(m => { try { m(MODUL_API); } catch (e) { console.error(e); } });
+
+  // Kısayollardan ve takvim hatırlatmasından gelen istek: ?kapat, ?odak, ?ekle=okuma, ?gorev
+  function acilisIstegi() {
+    const q = new URLSearchParams(location.search);
+    if (!Array.from(q.keys()).length) return;
+    history.replaceState(null, '', location.pathname + (location.hash || '#bugun'));
+    if (!durum.anahtar) return;
+    if (q.has('kapat')) kapatAc();
+    else if (q.has('odak')) location.hash = '#odak';
+    else if (q.get('ekle')) ekleAc(q.get('ekle'));
+    else if (q.has('gorev')) { $('#gorevForm').reset(); pencereAc('gorevDialog'); }
+  }
+
   ciz();
   havaGetir();
   if (durum.anahtar) esitle(true); else ayarAc();
+  acilisIstegi();
 })();

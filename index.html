@@ -55,6 +55,19 @@
   </form>
 </dialog>
 
+<dialog id="kapatDialog" aria-labelledby="kapat-baslik">
+  <form id="kapatForm" method="dialog">
+    <h2 id="kapat-baslik">Günü kapat</h2>
+    <p class="not" id="kapat-tarih"></p>
+    <div id="kapat-alanlar"></div>
+    <p class="dialog-hata" role="alert" hidden></p>
+    <div class="dialog-alt">
+      <button type="button" class="metin-dugme" data-kapat="kapatDialog">Vazgeç</button>
+      <button type="submit" class="dugme">Kaydet</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="gorevDialog" aria-labelledby="gorev-baslik">
   <form id="gorevForm" method="dialog">
     <h2 id="gorev-baslik">Görev ekle</h2>

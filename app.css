@@ -140,6 +140,18 @@ h2 {
 .plan-satir.simdi .plan-saat { color: var(--vurgu); }
 .plan-satir.simdi::before { background: var(--vurgu); width: 14px; }
 
+/* ---------- kartlar ---------- */
+.kart { margin: 22px 0 0; padding: 12px 14px 14px; border: 1px solid var(--cerceve); border-radius: 4px; background: rgba(11, 26, 43, 0.72); }
+.kart h2 { margin: 0 0 4px; padding: 0; border: 0; color: var(--yazi); font-size: 22px; }
+.kart .not { margin: 4px 0; }
+.kart-ust { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.kart-vurgu { border-color: var(--vurgu); box-shadow: inset 3px 0 0 var(--vurgu); }
+.kart .liste { margin-top: 4px; }
+.cip-vurgu { border-color: var(--vurgu); color: var(--vurgu); }
+.paneller { margin-top: 8px; }
+.panel-bag::before { content: "▸ "; color: var(--vurgu); }
+.panel-dugme { display: inline-block; text-decoration: none; margin: 4px 0 6px; }
+
 /* ---------- listeler ---------- */
 .liste { list-style: none; margin: 0; padding: 0; }
 .liste > li + li { border-top: 1px solid var(--ayrac); }
@@ -249,6 +261,10 @@ fieldset.alan { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20
 fieldset.alan legend { float: left; width: 100%; padding: 0; margin-bottom: 4px; }
 .secim { display: inline-flex; align-items: center; gap: 6px; color: var(--yazi); font-size: 16px; }
 .iki-alan { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.kapat-bolum { margin: 14px 0; padding: 10px 12px 2px; border: 1px solid var(--ayrac); border-radius: 4px; }
+.kapat-bolum legend { padding: 0 6px; font-family: var(--f-baslik); font-weight: 500; font-size: 19px; color: var(--yazi); }
+.kapat-bolum .alan { margin: 8px 0; }
+.secimler { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 4px 0 2px; }
 .dialog-hata { margin: 12px 0 0; padding: 8px 10px; font-size: 14px; color: var(--gecikme); background: rgba(255, 123, 103, 0.12); border-radius: 4px; }
 .dialog-alt { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 18px; margin-top: 18px; }
 .yardim { margin: 6px 0; font-size: 14px; color: var(--soluk); }

@@ -141,20 +141,69 @@
     return out;
   }
 
-  // Bugünün eksik girdileri: uyku her gün, sabah bloğu hafta içi, okuma her gün
-  function eksikGirdiler(kayitlar, tarih) {
+  // Bir günün eksik girdileri: o günün uykusu (dün geceki ışık, bu sabahki kalkış), hafta içi sabah bloğu
+  // ve dün geceki okuma (okuma ışıktan önceki yarım saatte, günü kapattıktan sonra). Hariç günlerde (gezi, askerlik) hiçbiri.
+  function eksikGirdiler(kayitlar, tarih, haric) {
     const iso = isoTarih(tarih);
-    const var_ = tur => kayitlar.some(k => k.t === iso && k.tur === tur);
+    const dun = isoTarih(gunEkle(tarih, -1));
+    const var_ = (tur, t) => kayitlar.some(k => k.t === t && k.tur === tur);
     const eksik = [];
-    if (!var_('uyku')) eksik.push('uyku');
+    if (haricMi(iso, haric)) return eksik;
+    if (!var_('uyku', iso)) eksik.push({ tur: 'uyku', t: iso });
     const g = tarih.getDay();
-    if (g >= 1 && g <= 5 && !var_('sabah_blogu')) eksik.push('sabah_blogu');
-    if (!var_('okuma')) eksik.push('okuma');
+    if (g >= 1 && g <= 5 && !var_('sabah_blogu', iso)) eksik.push({ tur: 'sabah_blogu', t: iso });
+    if (!haricMi(dun, haric) && !var_('okuma', dun)) eksik.push({ tur: 'okuma', t: dun });
     return eksik;
   }
 
   function haricMi(iso, haric) {
     return (haric || []).some(([a, b]) => iso >= a && iso <= b);
+  }
+
+  // Haftanın pazartesisi
+  function haftaBasi(d) {
+    const x = sadeceGun(d);
+    return gunEkle(x, -((x.getDay() + 6) % 7));
+  }
+
+  // Gece yarısından sonra 04:00'e kadar hâlâ önceki gün sayılır (günü kapatırken)
+  function kapanisGunu(simdi) {
+    return simdi.getHours() < 4 ? gunEkle(simdi, -1) : sadeceGun(simdi);
+  }
+
+  // O günün okuma bloğu (iskelette "Okuma" geçen ve saati çözülmüş blok)
+  function okumaBloku(plan) {
+    return (plan.bloklar || []).find(b => /okuma/i.test(b.is || '') && /^\d{1,2}:\d{2}-/.test(b.saat || '')) || null;
+  }
+
+  // Haftanın albümü: sıradaki albüm bir önceki dinlendikten sonraki pazartesi başlar; dinlenmeyen albüm sonraki haftaya geçer
+  function albumPlani(veri, bugun) {
+    const albumler = (veri && veri.albumler) || [];
+    const bas = haftaBasi(tarihAyristir((veri && veri.baslangic) || isoTarih(bugun)));
+    const buHafta = haftaBasi(bugun);
+    let hafta = bas, aktif = null;
+    const plan = [];
+    for (const a of albumler) {
+      const satir = { album: a, hafta: isoTarih(hafta) };
+      if (a.dinlendi) {
+        plan.push(satir);
+        const sonraki = gunEkle(haftaBasi(tarihAyristir(a.dinlendi)), 7);
+        hafta = sonraki > gunEkle(hafta, 7) ? sonraki : gunEkle(hafta, 7);
+        continue;
+      }
+      if (!aktif) {
+        if (hafta > buHafta) { satir.gelecek = true; plan.push(satir); hafta = gunEkle(hafta, 7); aktif = satir; continue; }
+        satir.kacinci = Math.floor(gunFarki(hafta, buHafta) / 7) + 1;
+        aktif = satir;
+        plan.push(satir);
+        hafta = gunEkle(buHafta, 7);
+        continue;
+      }
+      satir.gelecek = true;
+      plan.push(satir);
+      hafta = gunEkle(hafta, 7);
+    }
+    return { plan, aktif: aktif && !aktif.gelecek ? aktif : null };
   }
 
   // [bas, bit] dahil, hariç aralıklar düşülmüş gün sayısı
@@ -219,6 +268,6 @@
     GUN_KODLARI, GUN_ADLARI, AY_ADLARI, BIRIM, DURUM_ADI, HAVA,
     pad, isoTarih, sadeceGun, tarihAyristir, gunEkle, gunFarki, tarihYazi, kisaTarih, saatYazi, gunModu,
     onYaziAyristir, bolumler, bolumBul, ilkParagraf, basliksizGovde, projeOku, saatAnahtari, gunPlani,
-    jsonlOku, eksikGirdiler, etkinGun, hiz, kalanGun, kalanYazi, gorevSirala,
+    jsonlOku, eksikGirdiler, haricMi, haftaBasi, kapanisGunu, okumaBloku, albumPlani, etkinGun, hiz, kalanGun, kalanYazi, gorevSirala,
   };
 });

@@ -13,4 +13,8 @@ Bu depo sadece uygulamanın kodu. Veriler özel depoda durur ve her cihazda o ci
 - `index.html`, `app.css`, `app.js`: uygulama
 - `lib.js`: tarih, plan ve hız hesapları
 - `sw.js`: çevrimdışı açılış için önbellek
-- `vendor/marked.min.js` (MIT) ve `fonts/` (Barlow Condensed, IBM Plex Sans; OFL)
+- `film.html`, `film.css`, `film.js`: Film defteri (Letterboxd paneli); veriyi `duzen-veri/film/veri.json`'dan okur
+- `vendor/marked.min.js` (MIT) ve `fonts/` (Barlow Condensed, IBM Plex Sans, IBM Plex Mono, Big Shoulders Display; OFL)
+
+## Kısayollar
+Uygulama simgesine basılı tutunca: Günü kapat, Odak modu, Okuma ekle, Görev ekle. Aynı istekler adresle de açılır: `?kapat`, `?odak`, `?ekle=okuma`, `?gorev`.

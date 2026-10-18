@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101418">
+<meta name="robots" content="noindex">
+<title>Film defteri</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="fonts/film-fonts.css">
+<link rel="stylesheet" href="film.css">
+</head>
+<body>
+<div class="ust-bar">
+  <a class="geri-bag" href="./#defter/letterboxd-paneli">‹ Düzen</a>
+  <span class="veri-durum" id="veri-durum"></span>
+</div>
+<div class="bildirim" id="bildirim" role="status" hidden></div>
+<p class="yukleniyor" id="yukleniyor">Film verisi yükleniyor…</p>
+<div id="panel" hidden>
+<div class="wrap">
+  <header class="top">
+    <p class="eyebrow" id="eyebrow">Letterboxd verisi</p>
+    <h1>Film defteri</h1>
+    <p class="stamp" id="stamp"></p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Bölümler">
+    <button class="tab" role="tab" id="tab-genel" aria-controls="genel" aria-selected="true">Genel</button>
+    <button class="tab" role="tab" id="tab-kirilimlar" aria-controls="kirilimlar" aria-selected="false">Kırılımlar</button>
+    <button class="tab" role="tab" id="tab-secici" aria-controls="secici" aria-selected="false">Seçici</button>
+  </nav>
+
+  <section id="genel" role="tabpanel" aria-labelledby="tab-genel">
+    <div class="hero">
+      <div class="hero-main">
+        <div class="hero-num" id="hero-num"></div>
+        <p class="hero-cap" id="hero-cap"></p>
+      </div>
+      <div class="tiles" id="tiles"></div>
+    </div>
+    <div class="grid">
+      <article class="card span-5" id="c-ratings">
+        <div class="card-head">
+          <div><h2>Puan dağılımı</h2><p class="sub" id="ratings-sub"></p></div>
+          <button class="ghost" type="button" data-table-toggle="ratings" aria-pressed="false">Tablo</button>
+        </div>
+        <div id="ratings-chart"></div>
+        <div id="ratings-table" hidden></div>
+        <p class="note">Bir puana tıkla, o puanı verdiğin filmler aşağıda listelensin.</p>
+        <div id="ratings-drill"></div>
+      </article>
+      <article class="card span-7" id="c-months">
+        <div class="card-head">
+          <div><h2>Ay ay izlemeler</h2><p class="sub" id="months-sub"></p></div>
+          <button class="ghost" type="button" data-table-toggle="months" aria-pressed="false">Tablo</button>
+        </div>
+        <div id="months-chart"></div>
+        <div id="months-table" hidden></div>
+        <div id="months-drill"></div>
+      </article>
+    </div>
+  </section>
+
+  <section id="kirilimlar" role="tabpanel" aria-labelledby="tab-kirilimlar" hidden>
+    <div class="grid">
+      <article class="card">
+        <div class="card-head"><div><h2>Dekad</h2><p class="sub">Filmin çıkış yılına göre. Satıra tıkla, o dekaddeki izlediklerin açılsın.</p></div></div>
+        <div id="decades"></div>
+      </article>
+      <article class="card span-6">
+        <div class="card-head"><div><h2>Tür</h2><p class="sub">Bir film birden fazla türe sayılır.</p></div></div>
+        <div id="genres"></div>
+      </article>
+      <article class="card span-6">
+        <div class="card-head"><div><h2>Ülke</h2><p class="sub">Yapımcı ülkeler. Ortak yapımlar her ülkeye sayılır.</p></div></div>
+        <div id="countries"></div>
+      </article>
+      <article class="card">
+        <div class="card-head"><div><h2>Yönetmen</h2><p class="sub">İsme tıkla, o yönetmenden izlediklerin açılsın.</p></div></div>
+        <div id="directors"></div>
+      </article>
+      <article class="card span-6">
+        <div class="card-head"><div><h2>Süre</h2><p class="sub">Mini diziler hariç.</p></div></div>
+        <div id="runtimes"></div>
+      </article>
+      <article class="card span-6">
+        <div class="card-head"><div><h2>TMDB eşleşmesi</h2><p class="sub">Tür, ülke, yönetmen ve süre bilgisinin kaynağı.</p></div></div>
+        <div id="matching"></div>
+      </article>
+    </div>
+  </section>
+
+  <section id="secici" role="tabpanel" aria-labelledby="tab-secici" hidden>
+    <article class="card">
+      <div class="card-head"><div><h2>Bu akşam ne izlesem?</h2><p class="sub" id="picker-sub"></p></div></div>
+      <div class="filters" id="filters">
+        <div class="field"><span>Ağırlık</span><div class="lvl" id="f-lvl"></div></div>
+        <label class="field" for="f-rt"><span>Süre</span><select id="f-rt"></select></label>
+        <label class="field" for="f-genre"><span>Tür</span><select id="f-genre"></select></label>
+        <label class="field" for="f-dec"><span>Dekad</span><select id="f-dec"></select></label>
+        <label class="field" for="f-co"><span>Ülke</span><select id="f-co"></select></label>
+        <label class="chk" for="f-tv"><input type="checkbox" id="f-tv"> Mini diziler dahil</label>
+        <label class="chk" for="f-unrel"><input type="checkbox" id="f-unrel"> Çıkmamışlar dahil</label>
+      </div>
+      <div class="pick-bar">
+        <button class="btn-primary" id="pick" type="button">Rastgele seç</button>
+        <p id="pick-count"></p>
+      </div>
+      <div id="ticket"></div>
+      <details class="how" id="how">
+        <summary>Ağırlık nasıl hesaplanıyor?</summary>
+        <div id="how-body"></div>
+      </details>
+      <div class="list-head">
+        <h3 id="list-title">Uyanlar</h3>
+        <label class="field" for="f-sort"><span>Sırala</span><select id="f-sort"></select></label>
+      </div>
+      <ol class="plist" id="plist"></ol>
+      <button class="ghost more" id="plist-more" type="button" hidden>Daha fazla göster</button>
+    </article>
+  </section>
+
+  <footer class="foot" id="foot"></footer>
+  <section class="veri-araclar" aria-label="Veri">
+    <button class="ghost" id="simdiGuncelle" type="button">Letterboxd'ı şimdi kontrol et</button>
+    <label class="ghost dosya-sec" for="exportDosya">Export ZIP'ini yükle</label>
+    <input type="file" id="exportDosya" accept=".zip,application/zip" hidden>
+    <p class="note" id="veri-not" role="status"></p>
+  </section>
+</div>
+<div id="tip" role="tooltip" hidden></div>
+</div>
+<script src="lib.js"></script>
+<script src="film.js"></script>
+</body>
+</html>
