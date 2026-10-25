@@ -5,7 +5,7 @@
   const SAHIP = 'mskldf', DEPO = 'duzen-veri', DAL = 'main';
   const API = 'https://api.github.com';
   const KONUM = { lat: 41.06, lon: 28.99 };
-  const ILGILI = /^(defter|koc|is|muzik|dizi|saat|gelen|takvim)\//;
+  const ILGILI = /^(defter|koc|is|muzik|dizi|saat|gelen|takvim|para)\//;
   const IKILI = /\.(jpe?g|png|webp|gif|zip)$/i;  // fotoğraflar ve arşivler eşitlenmez, gerektiğinde ayrıca alınır
 
   // ---------- yerel saklama ----------
@@ -92,6 +92,9 @@
     ayar: 'M15 12a3 3 0 1 1-6 0a3 3 0 1 1 6 0zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
     yenile: 'M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5',
     indir: 'M12 4v11M7 10l5 5l5-5M5 20h14',
+    para: 'M3 6.5h18v11H3zM14.5 12a2.5 2.5 0 1 1-5 0a2.5 2.5 0 1 1 5 0zM6.5 9.5v5M17.5 9.5v5',
+    ok: 'M9 6l6 6l-6 6',
+    daha3: 'M6 12h.01M12 12h.01M18 12h.01',
   };
   const ikon = ad => (IKONLAR[ad] ? '<svg class="ikon" viewBox="0 0 24 24" aria-hidden="true"><path d="' + IKONLAR[ad] + '"/></svg>' : '');
 
@@ -410,16 +413,16 @@
       const [b1, b2] = e.saat.split('-');
       satirlar.push({ bas: dakikaOf(b1), bit: dakikaOf(b2 || b1), ad: e.baslik, saat: e.saat, an: !b2, takvim: true });
     }
-    if (plan.uyku) {
-      satirlar.push({ bas: dakikaOf(plan.uyku.kalkis), bit: dakikaOf(plan.uyku.kalkis), ad: 'Kalkış', saat: plan.uyku.kalkis, an: true });
-      satirlar.push({ bas: dakikaOf(plan.uyku.isik), bit: dakikaOf(plan.uyku.isik), ad: 'Işık kapanır', saat: plan.uyku.isik, an: true });
-    }
+    // Kalkış ve ışık: hedef aralıksa "06:00–07:00"; "Işığa" ve "Gün bitti" aralığın sınırına göre
+    const up = L.uykuPlani(iskelet(), L.sadeceGun(simdi));
+    if (up && up.kalkis) satirlar.push({ bas: up.kalkis.bas, bit: up.kalkis.bas, ad: 'Kalkış', saat: up.kalkis.yazi, an: true });
+    if (up && up.isik) satirlar.push({ bas: up.isik.bas, bit: up.isik.bas, ad: 'Işık kapanır', saat: up.isik.yazi, an: true });
     satirlar.sort((a, b) => a.bas - b.bas);
     const su = satirlar.find(s => !s.an && dk >= s.bas && dk < s.bit) || null;
     const sonraki = satirlar.find(s => s.bas > dk) || null;
     // Saati belirsiz bloklar ("gün içi", "öğleden sonra"): o anda saatli blok yoksa gösterilir
     const gunici = plan.bloklar.filter(b => !/^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(b.saat || ''));
-    return { su, sonraki, dk, gunici, isik: plan.uyku ? dakikaOf(plan.uyku.isik) : null };
+    return { su, sonraki, dk, gunici, isik: up && up.isik ? up.isik.sinir : null };
   }
 
   function simdiKarti(simdi, hm) {
@@ -457,10 +460,11 @@
   // Bir günün planı: iskelet blokları, takvim etkinlikleri, kalkış ve ışık
   function planListesi(gun, canli, tumGunGoster) {
     const plan = L.gunPlani(iskelet(), gun);
+    const up = L.uykuPlani(iskelet(), gun);
     const satirlar = [];
-    if (plan.uyku) satirlar.push({ saat: plan.uyku.kalkis, baslik: 'Kalkış', alt: '' });
+    if (up && up.kalkis) satirlar.push({ saat: up.kalkis.yazi, baslik: 'Kalkış', alt: '' });
     for (const b of plan.bloklar) satirlar.push({ saat: b.saat, baslik: b.is, alt: b.kulvar });
-    if (plan.uyku) satirlar.push({ saat: plan.uyku.isik, baslik: 'Işık kapanır', alt: 'Son yarım saat telefon yok' });
+    if (up && up.isik) satirlar.push({ saat: up.isik.yazi, baslik: 'Işık kapanır', alt: 'Son yarım saat telefon yok' });
     const gt = takvimGunu(gun);
     for (const e of gt.saatli) satirlar.push({ saat: e.saat, baslik: e.baslik, alt: e.konum ? e.konum + ' · Takvim' : 'Takvim', takvim: true });
     satirlar.sort((a, b) => L.saatAnahtari(a.saat) - L.saatAnahtari(b.saat));
@@ -500,19 +504,44 @@
         : '<p class="not">Devam eden proje yok.</p>') + '</section>';
   }
 
-  // Uygulamanın kendi kutucukları: günü kapat, görev, diğer girdi (modüller albüm, dizi, film, odak ekler)
-  kutucukUreticiler.push({ sira: 10, fn: simdi => {
+  // Günü kapat: eksik her girdi tek dokunuşla "evet" olarak yazılır; ayrıntı ya da "hayır" için yanındaki ⋯
+  function kapanisEksikleri(simdi) {
     const hm = (havuz() || {}).meta || {};
     const kapanis = L.kapanisGunu(simdi), kapIso = L.isoTarih(kapanis);
-    const eksik = L.eksikGirdiler(kayitlar(), kapanis, hm.haric);
+    return { kapanis, kapIso, eksik: L.eksikGirdiler(kayitlar(), kapanis, hm.haric, L.uykuHedefi(iskelet(), kapIso)) };
+  }
+  function hizliSatir(e, kapanis) {
+    let baslik, alt;
+    if (e.tur === 'uyku') { baslik = 'Uyku hedefte'; alt = L.uykuHedefYazisi(L.uykuHedefi(iskelet(), e.t), e.t); }
+    else if (e.tur === 'sabah_blogu') { baslik = 'Sabah bloğu yapıldı'; alt = sabahKonusu(kapanis) || 'Sabah 06:00–07:00'; }
+    else { baslik = 'Dün gece okudum'; alt = 'Kitap ve sayfa için ⋯'; }
+    return '<li class="hizli-satir"><button type="button" class="hizli-evet" data-hizli="' + e.tur + '" data-tarih="' + e.t + '" aria-label="' + esc(baslik) + ' olarak kaydet">' +
+      '<span class="hizli-isaret" aria-hidden="true"></span><span class="hizli-yazi"><span class="hizli-baslik">' + esc(baslik) + '</span>' +
+      (alt ? '<span class="hizli-alt">' + esc(alt) + '</span>' : '') + '</span></button>' +
+      '<button type="button" class="hizli-ayrinti" data-kapat-ayrinti="' + e.tur + '" aria-label="' + esc(GIRDI_ADI[e.tur]) + ': ayrıntı ya da hayır" title="Ayrıntı ya da hayır">' + ikon('daha3') + '</button></li>';
+  }
+  let vurguKapat = false;   // takvimdeki "Günü kapat" bağlantısından gelince kart vurgulanır
+  function gunuKapatKarti(simdi) {
+    const { kapanis, eksik } = kapanisEksikleri(simdi);
+    if (!eksik.length) return '';
     const aksam = simdi.getHours() >= 18 || simdi.getHours() < 4;
-    if (!eksik.length) {
-      const haric = L.haricMi(kapIso, hm.haric);
-      return kutucukHtml({ attrs: 'data-ac="kapat"', ikon: 'ay', etiket: 'Günü kapat', ana: haric ? 'Takip dışı' : 'Tamam', alt: haric ? 'Bugün girdi beklenmiyor' : 'Girdiler tamam; istersen not bırak' });
-    }
-    return kutucukHtml({ attrs: 'data-ac="kapat"', ikon: 'ay', etiket: 'Günü kapat', ana: eksik.length + ' eksik',
-      alt: eksik.map(e => eksikEtiketi(e, kapIso)).join(', '), eylem: aksam ? 'Şimdi kapat' : '', vurgu: aksam });
-  } });
+    return '<section class="kart gunu-kapat' + (aksam || vurguKapat ? ' kart-vurgu' : '') + '" id="gunuKapat" aria-label="Günü kapat">' +
+      '<div class="kart-ust"><h2>Günü kapat</h2><span class="not">' + esc(L.tarihYazi(kapanis)) + '</span></div>' +
+      '<p class="not">Dokun, kaydolsun. Ayrıntı ya da "hayır" için ⋯</p>' +
+      '<ul class="hizli-liste">' + eksik.map(e => hizliSatir(e, kapanis)).join('') + '</ul></section>';
+  }
+
+  // Tek dokunuş: uyku hedefte, sabah bloğu yapıldı (konu plandan), dün gece okundu
+  async function hizliKaydet(tur, t) {
+    const k = { t, tur, kaynak: 'uygulama' };
+    if (tur === 'uyku') k.hedefte = true;
+    else if (tur === 'sabah_blogu') { k.yapildi = true; const konu = sabahKonusu(L.tarihAyristir(t)); if (konu) k.konu = konu; }
+    else if (tur !== 'okuma') return null;
+    await kayitEkle(k);
+    return k;
+  }
+
+  // Uygulamanın kendi kutucukları: görev, diğer girdi (modüller albüm, dizi, film, odak ekler)
   kutucukUreticiler.push({ sira: 50, fn: () => kutucukHtml({ attrs: 'data-ac="gorev"', ikon: 'gorev', etiket: 'İş', ana: 'Görev ekle', alt: 'Ad, son tarih, deadline' }) });
   kutucukUreticiler.push({ sira: 60, fn: () => kutucukHtml({ attrs: 'data-ac="ekle"', ikon: 'girdi', etiket: 'Girdi', ana: 'Diğer girdi', alt: 'Okuma, bisiklet, atölye, not' }) });
 
@@ -527,6 +556,7 @@
       '<header class="gun-bas"><h1>Bugün</h1><p class="gun-tarih">' + esc(L.tarihYazi(bugun)) + '</p>' + havaSatiri(bugun, false) +
       (tumGun.length ? '<p class="tum-gun">' + tumGun.map(e => '<span>' + esc(e.baslik) + '</span>').join('') + '</p>' : '') + '</header>' +
       simdiKarti(simdi, hm) +
+      gunuKapatKarti(simdi) +
       '<section class="kutucuklar" aria-label="Hızlı işler">' + kutucuklar(simdi) + '</section>' +
       ekKartlar('bugun-ust', simdi) +
       (yarin ? yarinBolumu(simdi) : '') +
@@ -690,13 +720,22 @@
     }
     const kay = kayitlar();
     const iskel = iskelet();
-    const uykular = kay.filter(k => k.tur === 'uyku').sort((a, b) => b.t.localeCompare(a.t)).slice(0, 14);
-    const gecMi = (v, h2) => L.isikGecMi(v, h2, 15);
-    const uykuHtml = uykular.length ? '<table class="kucuk-tablo"><thead><tr><th>Gün</th><th>Işık</th><th>Kalkış</th></tr></thead><tbody>' + uykular.map(k => {
-      const hedef = L.gunPlani(iskel, L.tarihAyristir(k.t)).uyku || {};
-      return '<tr><td>' + esc(L.kisaTarih(L.tarihAyristir(k.t))) + '</td><td class="sayi' + (gecMi(k.isik, hedef.isik) ? ' gecikti' : '') + '">' + esc(k.isik || '–') + '</td>' +
-        '<td class="sayi' + (gecMi(k.kalkis, hedef.kalkis) ? ' gecikti' : '') + '">' + esc(k.kalkis || '–') + '</td></tr>';
-    }).join('') + '</tbody></table>' : '<p class="not">Henüz uyku girdisi yok.</p>';
+    const uykular = L.gunlukSon(kay.filter(k => k.tur === 'uyku')).sort((a, b) => b.t.localeCompare(a.t)).slice(0, 14);
+    const isaret = x => (x === true ? '<span class="iyi-yazi" aria-label="hedefte">✓</span>' : (x === false ? '<span class="kotu-yazi" aria-label="hedef dışı">✗</span>' : '–'));
+    const hucre = (deger, sonuc) => '<td class="sayi' + (sonuc === false ? ' gecikti' : '') + '">' + esc(deger || '–') + '</td>';
+    const bugunH = L.uykuHedefi(iskel, L.isoTarih(simdi));
+    const kayma = bugunH && bugunH.hedef ? Number(bugunH.hedef.hafta_sonu_kayma_dk) || 0 : 0;
+    const kaymaYazi = kayma && kayma % 60 === 0 ? (kayma === 60 ? 'bir' : kayma / 60) + ' saat' : kayma + ' dk';
+    const hedefNotu = bugunH && bugunH.hedef ? '<p class="not">Hedef: yatış ' + esc(bugunH.hedef.isik[1]) + '\'' + L.ekTen(L.dkAl(bugunH.hedef.isik[1])) + ', kalkış ' +
+      esc(bugunH.hedef.kalkis[1]) + '\'' + L.ekTen(L.dkAl(bugunH.hedef.kalkis[1])) + ' önce; daha erkeni de sayılır.' +
+      (kayma ? ' Cuma ve Cumartesi geceleri, Cumartesi ve Pazar sabahları ' + kaymaYazi + ' geç.' : '') + '</p>' : '';
+    const uykuHtml = uykular.length ? hedefNotu + '<table class="kucuk-tablo"><thead><tr><th>Gün</th><th>Yatış</th><th>Kalkış</th><th>Hedef</th></tr></thead><tbody>' + uykular.map(k => {
+      const d = L.uykuDegerlendir(k, L.uykuHedefi(iskel, k.t));
+      const saatsiz = !k.isik && !k.kalkis;
+      return '<tr><td>' + esc(L.kisaTarih(L.tarihAyristir(k.t))) + '</td>' +
+        (saatsiz ? '<td colspan="2" class="soluk-yazi">' + (k.hedefte === true ? 'hedefte' : (k.hedefte === false ? 'hedef dışı' : '–')) + '</td>' : hucre(k.isik, d.isik) + hucre(k.kalkis, d.kalkis)) +
+        '<td>' + isaret(d.hepsi) + '</td></tr>';
+    }).join('') + '</tbody></table>' : hedefNotu + '<p class="not">Henüz uyku girdisi yok.</p>';
     const son = kay.slice(-8).reverse();
     const sonHtml = son.length ? '<ul class="liste">' + son.map(k => '<li class="girdi"><span class="sayi">' + esc(k.t) + '</span> ' + esc(GIRDI_ADI[k.tur] || k.tur) + ' ' + esc(girdiOzeti(k)) + '</li>').join('') + '</ul>' : '<p class="not">Henüz girdi yok. Bugün\'deki kutucuklarla ya da Koç sohbetinde yazarak başla.</p>';
     const degYollari = Object.keys(durum.dosyalar).filter(y => /^koc\/degerlendirme\/.+\.md$/.test(y)).sort();
@@ -717,7 +756,7 @@
   function haftalarHtml(kay, iskel, hv, simdi) {
     const olculer = L.haftalikOlculer(kay, simdi, {
       n: 8, haric: hv ? hv.meta.haric : [],
-      hedefIsik: t => (L.gunPlani(iskel, L.tarihAyristir(t)).uyku || {}).isik,
+      uykuHedefi: t => L.uykuHedefi(iskel, t),
     }).filter(o => o.veriVar);
     if (!olculer.length) return '<section><h2>Haftalar</h2><p class="not">Girdiler birikince her ölçü için haftalık grafik ve baseline burada çıkar.</p></section>';
     const fmt = v => String(Math.round(v * 10) / 10).replace('.', ',');
@@ -759,9 +798,10 @@
 
   function girdiOzeti(k) {
     switch (k.tur) {
-      case 'uyku': return [k.isik && 'ışık ' + k.isik, k.kalkis && 'kalkış ' + k.kalkis].filter(Boolean).join(', ');
-      case 'sabah_blogu': return (k.yapildi === false ? 'yapılmadı' : 'yapıldı') + (k.konu ? ', ' + k.konu : '');
-      case 'okuma': return [k.kitap, k.sayfa && k.sayfa + ' sayfa', k.dk && k.dk + ' dk'].filter(Boolean).join(', ');
+      case 'uyku': return [k.isik && 'ışık ' + k.isik, k.kalkis && 'kalkış ' + k.kalkis].filter(Boolean).join(', ') ||
+        (k.hedefte === true ? 'hedefte' : (k.hedefte === false ? 'hedef dışı' : ''));
+      case 'sabah_blogu': return (k.sigmadi ? 'bugün sığmadı' : (k.yapildi === false ? 'yapılmadı' : 'yapıldı')) + (k.konu ? ', ' + k.konu : '');
+      case 'okuma': return k.yapildi === false ? 'okunmadı' : ([k.kitap, k.sayfa && k.sayfa + ' sayfa', k.dk && k.dk + ' dk'].filter(Boolean).join(', ') || 'okundu');
       case 'bisiklet': return [k.km && k.km + ' km', k.dk && k.dk + ' dk'].filter(Boolean).join(', ');
       case 'atolye': return [k.proje, k.dk && k.dk + ' dk', k.not].filter(Boolean).join(', ');
       case 'konusma': return k.yapildi === false ? 'yapılmadı' : 'yapıldı';
@@ -874,35 +914,42 @@
     return b ? String(b.is).replace(/\s*\([^)]*\)/g, '').replace(/:.*$/, '').trim() : '';
   }
 
-  function kapatFormu() {
-    const gun = L.kapanisGunu(new Date());
-    const hm = (havuz() || {}).meta || {};
-    const eksik = L.eksikGirdiler(kayitlar(), gun, hm.haric);
-    const bul = t => eksik.find(e => e.tur === t);
+  // Ayrıntı penceresi: sadece verilen bölüm (⋯'dan) ya da günün bütün eksikleri ve bir not
+  function kapatFormu(sadece) {
+    const { kapanis: gun, kapIso, eksik } = kapanisEksikleri(new Date());
+    const bul = t => eksik.find(e => e.tur === t && (!sadece || sadece === t));
     const parca = [];
-    if (bul('uyku')) parca.push('<fieldset class="kapat-bolum"><legend>Uyku</legend><div class="iki-alan">' +
-      '<label class="alan">Dün gece ışık<input name="uyku_isik" type="time"></label>' +
-      '<label class="alan">Bu sabah kalkış<input name="uyku_kalkis" type="time"></label></div></fieldset>');
-    if (bul('sabah_blogu')) parca.push('<fieldset class="kapat-bolum"><legend>Sabah bloğu</legend>' +
+    // Tek bölüm açıldıysa başlık pencerenin başlığında; bölüm çerçevesiz
+    const fs = sadece ? '<fieldset class="kapat-bolum tek"><legend class="gorunmez">' : '<fieldset class="kapat-bolum"><legend>';
+    if (bul('uyku')) parca.push(fs + 'Uyku</legend>' +
+      '<p class="not">' + esc(L.uykuHedefYazisi(L.uykuHedefi(iskelet(), kapIso), kapIso)) + '?</p>' +
+      '<div class="secimler"><label class="secim"><input type="radio" name="uyku_hedef" value="evet"> Hedefteydim</label>' +
+      '<label class="secim"><input type="radio" name="uyku_hedef" value="hayir"> Hedef dışı</label></div>' +
+      '<div class="iki-alan"><label class="alan">Dün gece ışık (isteğe bağlı)<input name="uyku_isik" type="time"></label>' +
+      '<label class="alan">Bu sabah kalkış (isteğe bağlı)<input name="uyku_kalkis" type="time"></label></div></fieldset>');
+    if (bul('sabah_blogu')) parca.push(fs + 'Sabah bloğu</legend>' +
       '<div class="secimler"><label class="secim"><input type="radio" name="sabah_yapildi" value="evet"> Yapıldı</label>' +
-      '<label class="secim"><input type="radio" name="sabah_yapildi" value="hayir"> Yapılmadı</label></div>' +
+      '<label class="secim"><input type="radio" name="sabah_yapildi" value="hayir"> Yapılmadı</label>' +
+      '<label class="secim"><input type="radio" name="sabah_yapildi" value="sigmadi"> Bugün sığmadı</label></div>' +
       '<div class="iki-alan"><label class="alan">Konu<input name="sabah_konu" type="text" value="' + esc(sabahKonusu(gun)) + '"></label>' +
-      '<label class="alan">Dakika<input name="sabah_dk" type="number" inputmode="numeric" min="0" value="35"></label></div></fieldset>');
+      '<label class="alan">Dakika (isteğe bağlı)<input name="sabah_dk" type="number" inputmode="numeric" min="0"></label></div></fieldset>');
     const ok = bul('okuma');
-    if (ok) parca.push('<fieldset class="kapat-bolum"><legend>Dün gece okuma</legend>' +
+    if (ok) parca.push(fs + 'Dün gece okuma</legend>' +
       '<div class="secimler"><label class="secim"><input type="radio" name="okuma_yapildi" value="evet"> Okudum</label>' +
       '<label class="secim"><input type="radio" name="okuma_yapildi" value="hayir"> Okumadım</label></div>' +
-      '<label class="alan">Kitap<input name="okuma_kitap" type="text" value="' + esc(sakla.al('sonKitap', '')) + '"></label>' +
+      '<label class="alan">Kitap (isteğe bağlı)<input name="okuma_kitap" type="text" value="' + esc(sakla.al('sonKitap', '')) + '"></label>' +
       '<div class="iki-alan"><label class="alan">Sayfa<input name="okuma_sayfa" type="number" inputmode="numeric" min="0"></label>' +
       '<label class="alan">Dakika<input name="okuma_dk" type="number" inputmode="numeric" min="0"></label></div>' +
       '<input type="hidden" name="okuma_t" value="' + esc(ok.t) + '"></fieldset>');
-    parca.push('<label class="alan">Günden bir not (isteğe bağlı)<textarea name="not" rows="2"></textarea></label>');
-    return { gun, html: (eksik.length ? '<p class="not">Boş bıraktığın kaydedilmez.</p>' : '<p class="not">Bu günün girdileri tamam; istersen not bırak.</p>') + parca.join('') };
+    if (!sadece) parca.push('<label class="alan">Günden bir not (isteğe bağlı)<textarea name="not" rows="2"></textarea></label>');
+    const baslik = sadece ? ({ uyku: 'Uyku', sabah_blogu: 'Sabah bloğu', okuma: 'Dün gece okuma' }[sadece] || 'Günü kapat') : 'Günü kapat';
+    return { gun, baslik, html: (sadece || eksik.length ? '' : '<p class="not">Bu günün girdileri tamam; istersen not bırak.</p>') + parca.join('') };
   }
 
-  function kapatAc() {
+  function kapatAc(sadece) {
     if (!durum.anahtar) { ayarAc(); hataGoster('Önce anahtar gir.'); return; }
-    const f = kapatFormu();
+    const f = kapatFormu(sadece);
+    $('#kapat-baslik').textContent = f.baslik;
     $('#kapat-tarih').textContent = L.tarihYazi(f.gun);
     $('#kapat-alanlar').innerHTML = f.html;
     pencereAc('kapatDialog');
@@ -913,14 +960,18 @@
     const iso = L.isoTarih(L.kapanisGunu(new Date()));
     const s = ad => String(v.get(ad) || '').trim();
     const liste = [];
-    if (s('uyku_isik') || s('uyku_kalkis')) {
+    if (s('uyku_isik') || s('uyku_kalkis') || s('uyku_hedef')) {
       const k = { t: iso, tur: 'uyku', kaynak: 'uygulama' };
       if (s('uyku_isik')) k.isik = s('uyku_isik');
       if (s('uyku_kalkis')) k.kalkis = s('uyku_kalkis');
+      // Saat girilmediyse seçim yazılır; saat varsa hedefte olup olmadığı saatlerden hesaplanır
+      if (!k.isik && !k.kalkis) k.hedefte = s('uyku_hedef') === 'evet';
       liste.push(k);
     }
     if (s('sabah_yapildi')) {
-      const k = { t: iso, tur: 'sabah_blogu', kaynak: 'uygulama', yapildi: s('sabah_yapildi') === 'evet' };
+      const sec = s('sabah_yapildi');
+      const k = { t: iso, tur: 'sabah_blogu', kaynak: 'uygulama', yapildi: sec === 'evet' };
+      if (sec === 'sigmadi') k.sigmadi = true;
       if (k.yapildi && s('sabah_konu')) k.konu = s('sabah_konu');
       if (k.yapildi && s('sabah_dk')) k.dk = Number(s('sabah_dk'));
       liste.push(k);
@@ -937,7 +988,7 @@
       liste.push(k);
     }
     if (s('not')) liste.push({ t: iso, tur: 'not', kaynak: 'uygulama', metin: s('not') });
-    if (!liste.length) { hataGoster('Kaydedilecek bir şey yok; en az bir bölümü doldur.'); return false; }
+    if (!liste.length) { hataGoster('Kaydedilecek bir şey yok; bir seçim yap.'); return false; }
     await kayitlarEkle(liste, 'Koç: günü kapat ' + iso);
     return true;
   }
@@ -1042,6 +1093,18 @@
     if (!t) return;
     if (t.dataset.ac === 'ayar') { e.preventDefault(); ayarAc(); }
     else if (t.dataset.ac === 'kapat') { e.preventDefault(); kapatAc(); }
+    else if (t.dataset.kapatAyrinti) { e.preventDefault(); kapatAc(t.dataset.kapatAyrinti); }
+    else if (t.dataset.hizli) {
+      e.preventDefault();
+      if (!durum.anahtar) { ayarAc(); return; }
+      let k = null;
+      islemle(t, async () => { k = await hizliKaydet(t.dataset.hizli, t.dataset.tarih); return !!k; }).then(ok => {
+        if (!ok || !k) return;
+        const kalan = kapanisEksikleri(new Date()).eksik.length;
+        tost(GIRDI_ADI[k.tur] + ': ' + girdiOzeti(k) + (kalan ? '' : ' · girdiler tamam'), false,
+          { ad: 'Geri al', fn: () => islemle(null, async () => { await kayitSil(k); return true; }, 'Geri alındı') });
+      });
+    }
     else if (t.dataset.ac === 'gorev') { e.preventDefault(); if (!durum.anahtar) { ayarAc(); return; } $('#gorevForm').reset(); pencereAc('gorevDialog'); }
     else if (t.dataset.ac === 'ekle') { e.preventDefault(); ekleAc(); }
     else if (t.dataset.ac === 'yenile') { e.preventDefault(); esitle(false); }
@@ -1138,7 +1201,15 @@
     history.replaceState(null, '', location.pathname + (location.hash || '#bugun'));
     if (!durum.anahtar) return;
     if (!veriVar()) await ilkEsitleme;   // cihazdaki kopya yoksa ilk eşitlemeyi bekle
-    if (q.has('kapat')) kapatAc();
+    if (q.has('kapat')) {
+      if (!kapanisEksikleri(new Date()).eksik.length) { location.hash = '#bugun'; tost('Bugünün girdileri tamam'); return; }
+      vurguKapat = true;
+      setTimeout(() => { vurguKapat = false; }, 60000);
+      location.hash = '#bugun';
+      ciz();
+      const kart = document.getElementById('gunuKapat');
+      if (kart) kart.scrollIntoView({ block: 'center' });
+    }
     else if (q.has('odak')) location.hash = '#odak';
     else if (q.get('ekle')) ekleAc(q.get('ekle'));
     else if (q.has('gorev')) { $('#gorevForm').reset(); pencereAc('gorevDialog'); }

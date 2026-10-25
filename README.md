@@ -11,10 +11,11 @@ Bu depo sadece uygulamanın kodu. Veriler özel depoda durur ve her cihazda o ci
 
 ## Dosyalar
 - `index.html`, `app.css`, `app.js`: uygulama
-- `lib.js`: tarih, plan ve hız hesapları
+- `lib.js`: tarih, plan, uyku hedefi, hız ve para hesapları
+- Bölümler (app.js'e modül olarak bağlanır): `odak.js` (odak modu), `oneri.js` (koç önerileri), `qr.js` (anahtarı QR ile aktarma), `gelen.js` (gelen kutusu), `saatler.js`, `muzik.js`, `izleme.js` (dizi ve film), `para.js` (varlıklar, borçlar, net değer), `kilavuz.js`
 - `sw.js`: çevrimdışı açılış için önbellek
 - `film.html`, `film.css`, `film.js`: Film defteri (Letterboxd paneli); veriyi `duzen-veri/film/veri.json`'dan okur
 - `vendor/marked.min.js` (MIT) ve `fonts/` (Barlow Condensed, IBM Plex Sans, IBM Plex Mono, Big Shoulders Display; OFL)
 
 ## Kısayollar
-Uygulama simgesine basılı tutunca: Günü kapat, Odak modu, Okuma ekle, Görev ekle. Aynı istekler adresle de açılır: `?kapat`, `?odak`, `?ekle=okuma`, `?gorev`.
+Uygulama simgesine basılı tutunca: Günü kapat, Albüm dinledim, Film izledim, Görev ekle. Aynı istekler adresle de açılır: `?kapat` (Bugün'deki Günü kapat kartını öne çıkarır), `?album`, `?film`, `?gorev`; ayrıca `?odak`, `?ekle=okuma`.
