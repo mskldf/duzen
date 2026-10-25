@@ -156,8 +156,8 @@
       '</article>';
   }
 
-  D.gorunum('gelen', gorunum, 'bugun');
-  D.panel({ ad: 'Gelen kutusu', href: '#gelen' });
+  D.gorunum('gelen', gorunum, 'daha');
+  D.panel({ ad: 'Gelen kutusu', href: '#gelen', ikon: 'gelen', aciklama: 'Telefondan paylaştıkların, kısa notlar', sira: 50 });
   D.kart('bugun-ust', () => {
     const n = islenmemis().length, b = bekleyenler.length;
     if (!n && !b) return '';

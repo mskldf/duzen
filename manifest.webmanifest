@@ -1,7 +1,7 @@
 {
   "name": "Düzen",
   "short_name": "Düzen",
-  "description": "Proje defteri, koç ve iş takibi",
+  "description": "Proje defteri, koç, iş, müzik, dizi ve film takibi",
   "lang": "tr",
   "start_url": "./#bugun",
   "scope": "./",
@@ -41,9 +41,9 @@
       ]
     },
     {
-      "name": "Odak modu",
-      "short_name": "Odak",
-      "url": "./?odak#odak",
+      "name": "Albüm dinledim",
+      "short_name": "Albüm",
+      "url": "./?album#bugun",
       "icons": [
         {
           "src": "icons/icon-192.png",
@@ -53,9 +53,9 @@
       ]
     },
     {
-      "name": "Okuma ekle",
-      "short_name": "Okuma",
-      "url": "./?ekle=okuma#bugun",
+      "name": "Film izledim",
+      "short_name": "Film",
+      "url": "./?film#bugun",
       "icons": [
         {
           "src": "icons/icon-192.png",

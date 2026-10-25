@@ -16,30 +16,9 @@
     const sn = Math.floor(ms / 1000);
     return iki(Math.floor(sn / 3600)) + ':' + iki(Math.floor(sn / 60) % 60) + ':' + iki(sn % 60);
   }
-  const dakika = s => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
 
-  // Bugünün planında şu anki ve sıradaki iş
-  function anlik(simdi) {
-    const plan = L.gunPlani(D.iskelet(), L.sadeceGun(simdi));
-    const dk = simdi.getHours() * 60 + simdi.getMinutes();
-    const satirlar = [];
-    for (const b of plan.bloklar) {
-      const m = /^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/.exec(b.saat || '');
-      if (m) satirlar.push({ bas: dakika(m[1].padStart(5, '0')), bit: dakika(m[2].padStart(5, '0')), ad: b.is, saat: b.saat });
-    }
-    for (const e of D.takvimGunu(simdi).saatli) {
-      const [b1, b2] = e.saat.split('-');
-      satirlar.push({ bas: dakika(b1), bit: dakika(b2 || b1), ad: e.baslik, saat: e.saat, an: !b2 });
-    }
-    if (plan.uyku) {
-      satirlar.push({ bas: dakika(plan.uyku.kalkis), bit: dakika(plan.uyku.kalkis), ad: 'Kalkış', saat: plan.uyku.kalkis, an: true });
-      satirlar.push({ bas: dakika(plan.uyku.isik), bit: dakika(plan.uyku.isik), ad: 'Işık kapanır', saat: plan.uyku.isik, an: true });
-    }
-    satirlar.sort((a, b) => a.bas - b.bas);
-    const su = satirlar.find(s => !s.an && dk >= s.bas && dk < s.bit) || null;
-    const sonraki = satirlar.find(s => s.bas > dk) || null;
-    return { su, sonraki, dk, isik: plan.uyku ? dakika(plan.uyku.isik) : null };
-  }
+  // Şu anki ve sıradaki iş uygulamanın ortak hesabından (iskelet + takvim + kalkış/ışık)
+  const anlik = simdi => D.anlik(simdi);
 
   function gorunum() {
     const simdi = new Date();
@@ -186,7 +165,7 @@
   function kilitBirak() { if (kilit) { kilit.release().catch(() => {}); kilit = null; } }
   document.addEventListener('visibilitychange', () => { if (location.hash.startsWith('#odak')) kilitAl(); });
 
-  D.gorunum('odak', gorunum, 'bugun');
+  D.gorunum('odak', gorunum, 'daha');
   D.sonra(function (sayfa) {
     clearInterval(zaman);
     if (sayfa !== 'odak') { kilitBirak(); return; }
@@ -203,7 +182,10 @@
       if (simdi.getMinutes() !== son) { son = simdi.getMinutes(); blokCiz(); }
     }, 1000);
   });
-  // Bugün'de odak moduna giriş
-  D.kart('bugun-plan-alti', () => '<p class="odak-giris"><a class="metin-dugme" href="#odak">Odak modunu aç</a>' +
-    (sayac() ? ' · sayaç çalışıyor: ' + esc((TURLER.find(t => t.tur === sayac().tur) || {}).ad || '') : '') + '</p>');
+  // Bugün'de odak moduna giriş: geniş ekranda (tablet, bilgisayar) kutucuk
+  D.kutucuk(70, () => {
+    const s = sayac();
+    return D.kutucukHtml({ href: '#odak', ikon: 'odak', etiket: 'Masa', ana: 'Odak modu', sinif: 'genis-ekran',
+      alt: s ? 'Sayaç çalışıyor: ' + ((TURLER.find(t => t.tur === s.tur) || {}).ad || '') : 'Saat, şu anki blok, sayaç' });
+  });
 });

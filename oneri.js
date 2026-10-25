@@ -8,7 +8,9 @@
   const PROJE_ALANLARI = ['sira', 'donem', 'durum', 'son_gun', 'blok', 'buyukluk'];
 
   const oneriler = () => ((D.jsonOku(YOL) || {}).oneriler || []);
-  const bekleyenler = () => oneriler().filter(o => o.durum === 'bekliyor');
+  // Bir haftadan eski bekleyen öneri gösterilmez: tarihi geçmiş öneri karar istemez; koç Pazar günü temizler
+  const taze = o => !o.t || L.gunFarki(L.tarihAyristir(o.t), L.sadeceGun(new Date())) <= 7;
+  const bekleyenler = () => oneriler().filter(o => o.durum === 'bekliyor' && taze(o));
 
   function kart(o) {
     return '<li class="oneri" data-oneri="' + esc(o.id) + '">' +

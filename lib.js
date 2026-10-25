@@ -176,7 +176,8 @@
     return (plan.bloklar || []).find(b => /okuma/i.test(b.is || '') && /^\d{1,2}:\d{2}-/.test(b.saat || '')) || null;
   }
 
-  // Haftanın albümü: sıradaki albüm bir önceki dinlendikten sonraki pazartesi başlar; dinlenmeyen albüm sonraki haftaya geçer
+  // Haftanın albümü: sıradaki albüm bir önceki dinlendikten sonraki pazartesi başlar; dinlenmeyen albüm sonraki haftaya geçer.
+  // Albüm haftası gelmeden de dinlenebilir; o zaman sıradaki, dinlendiği haftanın ardından gelen pazartesi başlar.
   function albumPlani(veri, bugun) {
     const albumler = (veri && veri.albumler) || [];
     const bas = haftaBasi(tarihAyristir((veri && veri.baslangic) || isoTarih(bugun)));
@@ -189,8 +190,7 @@
       const satir = { album: a, hafta: isoTarih(hafta) };
       if (a.dinlendi) {
         plan.push(satir);
-        const sonraki = gunEkle(haftaBasi(tarihAyristir(a.dinlendi)), 7);
-        hafta = sonraki > gunEkle(hafta, 7) ? sonraki : gunEkle(hafta, 7);
+        hafta = gunEkle(haftaBasi(tarihAyristir(a.dinlendi)), 7);
         continue;
       }
       if (!aktif) {
@@ -260,6 +260,7 @@
     { ad: 'bisiklet', baslik: 'Bisiklet', birim: 'km', tur: 'bisiklet', iyi: 1 },
     { ad: 'atolye', baslik: 'Atölye', birim: 'dk', tur: 'atolye', iyi: 1 },
     { ad: 'muzik', baslik: 'Haftanın albümü', birim: 'albüm', tur: 'muzik', iyi: 1 },
+    { ad: 'dizi', baslik: 'Dizi', birim: 'bölüm', tur: 'dizi', iyi: 0 },
   ];
   function haftalikOlculer(kayitlar, bugun, ayar) {
     ayar = ayar || {};

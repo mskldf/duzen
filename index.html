@@ -18,7 +18,10 @@
     <a class="marka" href="#bugun">Düzen</a>
     <span class="ust-saat sayi" id="saat"></span>
     <span class="ust-dugmeler">
-      <button class="ikon-dugme" id="yenileBtn" type="button" aria-label="Şimdi eşitle" title="Şimdi eşitle">
+      <a class="ikon-dugme" href="#kilavuz" aria-label="Kılavuz" title="Kılavuz">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-18 0a9 9 0 1 1 18 0zM9.6 9.4a2.5 2.5 0 1 1 3.6 2.3c-.7.3-1.2.9-1.2 1.7v.6M12 17.4v.1"/></svg>
+      </a>
+      <button class="ikon-dugme" id="yenileBtn" type="button" aria-label="Şimdi yenile" title="Şimdi yenile">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5"/></svg>
       </button>
       <button class="ikon-dugme" id="ayarBtn" type="button" aria-label="Ayarlar" title="Ayarlar">
@@ -28,24 +31,23 @@
   </header>
 
   <nav class="sekmeler" aria-label="Bölümler">
-    <a href="#bugun" data-sekme="bugun">Bugün</a>
-    <a href="#defter" data-sekme="defter">Defter</a>
-    <a href="#is" data-sekme="is">İş</a>
-    <a href="#koc" data-sekme="koc">Koç</a>
+    <a href="#bugun" data-sekme="bugun"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 12a4 4 0 1 1-8 0a4 4 0 1 1 8 0zM12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg><span>Bugün</span></a>
+    <a href="#defter" data-sekme="defter"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h11a3 3 0 0 1 3 3v12H8a3 3 0 0 1-3-3zM5 16.5a3 3 0 0 1 3-3h11M9 8.5h6"/></svg><span>Defter</span></a>
+    <a href="#is" data-sekme="is"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v11H4zM9 8V6.2c0-.7.5-1.2 1.2-1.2h3.6c.7 0 1.2.5 1.2 1.2V8M4 13h16"/></svg><span>İş</span></a>
+    <a href="#koc" data-sekme="koc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M7 16.5v-4M12 16.5V8M17 16.5v-6.5"/></svg><span>Koç</span></a>
+    <a href="#daha" data-sekme="daha" class="daha-bag"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z"/></svg><span>Daha</span></a>
+    <div class="yan-paneller" id="yanPaneller"></div>
   </nav>
 
   <div class="durum-cubugu" id="durum" role="status" hidden></div>
   <main id="gorunum"></main>
 </div>
 
-<button class="ekle-fab" id="ekleBtn" type="button" aria-label="Hızlı ekle">
-  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-</button>
 <div class="tost" id="tost" role="status" hidden></div>
 
 <dialog id="ekleDialog" aria-labelledby="ekle-baslik">
   <form id="ekleForm" method="dialog">
-    <h2 id="ekle-baslik">Hızlı ekle</h2>
+    <h2 id="ekle-baslik">Girdi ekle</h2>
     <div id="ekle-alanlar"></div>
     <p class="dialog-hata" role="alert" hidden></p>
     <div class="dialog-alt">
@@ -132,6 +134,8 @@
 <script src="gelen.js"></script>
 <script src="saatler.js"></script>
 <script src="muzik.js"></script>
+<script src="izleme.js"></script>
+<script src="kilavuz.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

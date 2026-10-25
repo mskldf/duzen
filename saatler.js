@@ -180,8 +180,8 @@
       '</article>';
   }
 
-  D.gorunum('saatler', gorunum, 'defter');
-  D.panel({ ad: 'Saatler', ac: 'Saatleri aç', href: '#saatler', proje: 'saat-arsivi' });
+  D.gorunum('saatler', gorunum, 'daha');
+  D.panel({ ad: 'Saatler', ac: 'Saatleri aç', href: '#saatler', proje: 'saat-arsivi', ikon: 'saat', aciklama: 'Liste, fiyat haritası, flip marjı, takip, kutu', sira: 40 });
 
   // ---------- durum değişikliği ----------
   function pencere() {
