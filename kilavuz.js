@@ -28,7 +28,7 @@
       '',
       '## Para',
       '- **Varlıklar:** nakit ve döviz, altın (gram, çeyrek, yarım, tam, ata, bilezik), gümüş, hisse (BIST için THYAO.IS gibi, ABD için AAPL), fon (TEFAS kodu), kripto (BTC-USD). Miktarı gir, değeri kendiliğinden hesaplanır.',
-      '- **Fiyatlar** hafta içi dört, hafta sonu bir kez gelir; acelen varsa **Şimdi güncelle**. Gelmeyen bir fiyat olursa varlığa dokunup **Fiyatı elle gir**.',
+      '- **Fiyatlar** (döviz, altın, gümüş, BIST ve ABD hisseleri, kripto) hafta içi dört, hafta sonu bir kez gelir; acelen varsa **Şimdi güncelle**. BIST hisselerinde günlük kapanış. Fonun ve başka borsalardaki hisselerin fiyatını sen girersin; varlığa dokunup **Fiyatı elle gir**.',
       '- **Borçlar:** kart, kredi, taksit. Son ödeme gününü girersen üç gün kala Bugün\'de hatırlatır; ödeyince **Ödedim**. Kart numarası yazma, adı yeter.',
       '- **Net değer** TL, dolar ya da gram altın olarak; her gün bir nokta eklenir, grafik zamanla dolar. Biri yanındayken **Tutarları gizle**.',
       '',

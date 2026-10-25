@@ -228,7 +228,7 @@
   function varlikBolumu(s) {
     if (!s.vs.length) {
       return '<section><div class="kart-ust bolum-ust"><h2>Varlıklar</h2><button type="button" class="dugme kucuk" data-varlik-ekle>Ekle</button></div>' +
-        '<p class="not">Nakit, döviz, altın, gümüş, hisse, fon ya da kripto ekle. Fiyatlar gün içinde kendiliğinden güncellenir; altın ve gümüş has gram üzerinden hesaplanır.</p></section>';
+        '<p class="not">Nakit, döviz, altın, gümüş, hisse, fon ya da kripto ekle. Fiyatlar gün içinde kendiliğinden güncellenir (fonunkini sen girersin); altın ve gümüş has gram üzerinden hesaplanır.</p></section>';
     }
     const gruplar = L.VARLIK_TURLERI.map(([tur, ad]) => ({ tur, ad, v: s.vs.filter(v => v.tur === tur) })).filter(g => g.v.length);
     const satir = v => {
@@ -365,7 +365,7 @@
   const paraSecenek = secili => secenek(Object.keys(L.PARA_BIRIMLERI).map(k => [k, k + ' (' + L.PARA_BIRIMLERI[k] + ')']), secili || 'TRY');
   const ALANLAR_TURE = {
     nakit: ['para', 'miktar'], altin: ['altin_birim', 'miktar'], gumus: ['gumus_birim', 'miktar'],
-    hisse: ['sembol', 'miktar', 'elle'], fon: ['kod', 'miktar', 'elle'], kripto: ['sembol', 'miktar', 'elle'], diger: ['miktar', 'elle_zorunlu'],
+    hisse: ['sembol', 'miktar', 'elle'], fon: ['kod', 'miktar', 'elle_zorunlu'], kripto: ['sembol', 'miktar', 'elle'], diger: ['miktar', 'elle_zorunlu'],
   };
   const MIKTAR_ADI = { nakit: 'Tutar', altin: 'Adet ya da gram', gumus: 'Miktar', hisse: 'Adet', fon: 'Pay adedi', kripto: 'Miktar', diger: 'Adet' };
 
@@ -381,8 +381,8 @@
       '<label class="alan" data-alan="para">Para birimi<select name="para">' + paraSecenek(v.para) + '</select></label>' +
       '<label class="alan" data-alan="altin_birim">Birim<select name="altin_birim">' + secenek(Object.keys(L.ALTIN_BIRIM).map(k => [k, L.ALTIN_BIRIM[k].ad]), v.tur === 'altin' ? v.birim : 'gram24') + '</select></label>' +
       '<label class="alan" data-alan="gumus_birim">Birim<select name="gumus_birim">' + secenek(Object.keys(L.GUMUS_BIRIM).map(k => [k, L.GUMUS_BIRIM[k].ad]), v.tur === 'gumus' ? v.birim : 'gram') + '</select></label>' +
-      '<label class="alan" data-alan="sembol">Sembol<input name="sembol" type="text" autocomplete="off" autocapitalize="characters" value="' + esc(v.sembol || '') + '" placeholder="THYAO.IS, AAPL, BTC-USD"><small>BIST hisseleri sonuna .IS alır (THYAO.IS). Kripto: BTC-USD gibi. Semboller Yahoo Finance\'tekiyle aynı.</small></label>' +
-      '<label class="alan" data-alan="kod">Fon kodu<input name="kod" type="text" autocomplete="off" autocapitalize="characters" value="' + esc(v.kod || '') + '" placeholder="TTE"><small>TEFAS\'taki üç harfli kod.</small></label>' +
+      '<label class="alan" data-alan="sembol">Sembol<input name="sembol" type="text" autocomplete="off" autocapitalize="characters" value="' + esc(v.sembol || '') + '" placeholder="THYAO.IS, AAPL, BTC-USD"><small>Fiyatı kendiliğinden gelenler: BIST hisseleri sonuna .IS alarak (THYAO.IS, günlük kapanış), ABD hisse ve ETF\'leri (AAPL, VOO), kripto (BTC-USD). Başka borsalar için fiyatı elle gir.</small></label>' +
+      '<label class="alan" data-alan="kod">Fon kodu<input name="kod" type="text" autocomplete="off" autocapitalize="characters" value="' + esc(v.kod || '') + '" placeholder="TTE"><small>TEFAS\'taki üç harfli kod. Fon fiyatları kendiliğinden gelmiyor; birim fiyatı aşağıya yaz, arada güncellemen yeter.</small></label>' +
       '<label class="alan" data-alan="miktar"><span class="miktar-adi">' + esc(MIKTAR_ADI[v.tur] || 'Miktar') + '</span><input name="miktar" type="text" inputmode="decimal" autocomplete="off" value="' + esc(v.miktar === undefined ? '' : String(v.miktar).replace('.', ',')) + '"></label>' +
       '<details class="alan" data-alan="elle"' + (elleVar ? ' open' : '') + '><summary>Fiyatı elle gir</summary><p class="not">Otomatik fiyat yoksa ya da yanlışsa. Girersen otomatik fiyatın yerine geçer.</p>' +
       '<div class="iki-alan"><label class="alan">Birim fiyat<input name="elle_fiyat" type="text" inputmode="decimal" autocomplete="off" value="' + esc(elleVar ? String(v.elle_fiyat).replace('.', ',') : '') + '"></label>' +
@@ -443,6 +443,7 @@
     const elle = sayi(s('elle_fiyat'));
     if (elle !== null && (isNaN(elle) || elle < 0)) { D.hataGoster('Birim fiyatı sayı olarak yaz.'); return false; }
     if (tur === 'diger' && elle === null) { D.hataGoster('Diğer türünde birim fiyatı girmen gerekiyor.'); return false; }
+    if (tur === 'fon' && elle === null) { D.hataGoster('Fonun birim fiyatını yaz (TEFAS\'taki son fiyat).'); return false; }
     if (elle !== null && tur !== 'nakit' && tur !== 'altin' && tur !== 'gumus') { v.elle_fiyat = elle; v.elle_para = s('elle_para') || 'TRY'; v.elle_tarih = L.isoTarih(new Date()); }
     if (s('not')) v.not = s('not');
     await jsonDegistir(YOL_V, 'varliklar', liste => {

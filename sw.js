@@ -1,5 +1,5 @@
 /* Düzen: uygulama kabuğunu önbellekte tutar; veri ve hava ağdan gelir (uygulama kendi kopyasını saklar). */
-const SURUM = 'duzen-v9';
+const SURUM = 'duzen-v10';
 const KABUK = [
   './', 'index.html', 'app.css', 'lib.js', 'app.js', 'manifest.webmanifest',
   'odak.js', 'oneri.js', 'qr.js', 'gelen.js', 'saatler.js', 'muzik.js', 'izleme.js', 'para.js', 'kilavuz.js', 'vendor/qrcode.js',
